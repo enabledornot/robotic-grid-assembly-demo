@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-
+import { gridMap } from './lib.js';
 // --- Initialize Pixi Application ---
 const app = new PIXI.Application();
 await app.init({                    // initialize it
@@ -24,11 +24,13 @@ const gridSize = 50;
 const gridLineColor = 0x696969;
 
 // Example cubes
-const cubes = [
-  { x: 0, y: 0, color: 0xff0000 },
-  { x: 0, y: 1, color: 0x00ff00 }
-  // { x: -1, y: -2, color: 0x0000ff }
-];
+// const cubes = [
+//   { x: 0, y: 0, color: 0xff0000 },
+//   { x: 0, y: 1, color: 0x00ff00 }
+//   // { x: -1, y: -2, color: 0x0000ff }
+// ];
+
+const cubes = gridMap();
 
   // --- Draw grid function ---
   function drawGrid() {
@@ -67,12 +69,8 @@ function drawCubes() {
   for (const c of cubes) {
     const px = c.x * gridSize;
     const py = c.y * gridSize;
-
-    g.setStrokeStyle(0, 0xffffff); // white border
-    // g.fill(c.color);
     g.rect(px, py, gridSize, gridSize);
     g.fill(c.color);
-    g.stroke();
   }
   return g;
 }
@@ -97,10 +95,13 @@ draw();
 // --- Pan handling ---
 let dragging = false;
 let lastMouse = null;
+let firstMouse = null;
+let clickThreshold = 5; // pixels
 
 app.canvas.addEventListener('mousedown', e => {
   dragging = true;
   lastMouse = { x: e.clientX, y: e.clientY };
+  firstMouse = { x: e.clientX, y: e.clientY };
 });
 
 app.canvas.addEventListener('mousemove', e => {
@@ -113,18 +114,31 @@ app.canvas.addEventListener('mousemove', e => {
   draw();
 });
 
-window.addEventListener('mouseup', () => dragging = false);
+app.canvas.addEventListener('mouseup', e => {
+  if (!lastMouse) return;
+  if (!firstMouse) return;
+  dragging = false;
 
-// --- Zoom handling ---
+  const dx = e.clientX - firstMouse.x;
+  const dy = e.clientY - firstMouse.y;
+
+  if (Math.abs(dx) < clickThreshold && Math.abs(dy) < clickThreshold) {
+    const gridX = Math.floor((e.offsetX / camera.zoom + camera.x) / gridSize);
+    const gridY = Math.floor((e.offsetY / camera.zoom + camera.y) / gridSize);
+    console.log('Grid clicked at:', gridX, gridY);
+  }
+
+  lastMouse = null;
+});
+
 app.canvas.addEventListener('wheel', e => {
   e.preventDefault();
   const zoomFactor = 1.1;
   const mouseX = e.offsetX;
   const mouseY = e.offsetY;
 
-  // world position under mouse
-  const worldX = (mouseX / camera.zoom) + camera.x;
-  const worldY = (mouseY / camera.zoom) + camera.y;
+  const worldX = mouseX / camera.zoom + camera.x;
+  const worldY = mouseY / camera.zoom + camera.y;
 
   camera.zoom *= e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
   camera.zoom = Math.max(0.1, Math.min(camera.zoom, 10));
@@ -134,3 +148,6 @@ app.canvas.addEventListener('wheel', e => {
 
   draw();
 });
+
+// Optional: prevent dragging from continuing outside canvas
+window.addEventListener('mouseleave', () => (dragging = false));
