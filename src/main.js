@@ -1,24 +1,136 @@
-import './style.css'
-import javascriptLogo from './javascript.svg'
-import viteLogo from '/vite.svg'
-import { setupCounter } from './counter.js'
+import * as PIXI from 'pixi.js';
 
-document.querySelector('#app').innerHTML = `
-  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="${viteLogo}" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank">
-      <img src="${javascriptLogo}" class="logo vanilla" alt="JavaScript logo" />
-    </a>
-    <h1>Hello Vite!</h1>
-    <div class="card">
-      <button id="counter" type="button"></button>
-    </div>
-    <p class="read-the-docs">
-      Click on the Vite logo to learn more
-    </p>
-  </div>
-`
+// --- Initialize Pixi Application ---
+const app = new PIXI.Application();
+await app.init({                    // initialize it
+  width: window.innerWidth,
+  height: window.innerHeight,
+  backgroundColor: 0xFFFFFF,
+  resizeTo: window // auto-resize on window size change
+});
 
-setupCounter(document.querySelector('#counter'))
+// Append the canvas
+document.body.appendChild(app.canvas);
+
+// --- World container for pan/zoom ---
+const world = new PIXI.Container();
+app.stage.addChild(world);
+
+// Camera parameters
+const camera = { x: 0, y: 0, zoom: 1 };
+
+// Grid settings
+const gridSize = 50;
+const gridLineColor = 0x696969;
+
+// Example cubes
+const cubes = [
+  { x: 0, y: 0, color: 0xff0000 },
+  { x: 0, y: 1, color: 0x00ff00 }
+  // { x: -1, y: -2, color: 0x0000ff }
+];
+
+  // --- Draw grid function ---
+  function drawGrid() {
+    const g = new PIXI.Graphics();
+    // Scale line width inversely to zoom to keep lines visible
+    g.lineStyle(Math.max(0.5, 1 / camera.zoom), gridLineColor);
+
+    const cols = Math.ceil(app.screen.width / (gridSize * camera.zoom)) + 2;
+    const rows = Math.ceil(app.screen.height / (gridSize * camera.zoom)) + 2;
+
+    const startX = Math.floor(camera.x / gridSize) - 1;
+    const startY = Math.floor(camera.y / gridSize) - 1;
+
+    // Vertical lines
+    for (let i = 0; i < cols; i++) {
+      const x = (startX + i) * gridSize;
+      g.moveTo(x, startY * gridSize);
+      g.lineTo(x, (startY + rows) * gridSize);
+      g.stroke();
+    }
+
+    // Horizontal lines
+    for (let j = 0; j < rows; j++) {
+      const y = (startY + j) * gridSize;
+      g.moveTo(startX * gridSize, y);
+      g.lineTo((startX + cols) * gridSize, y);
+      g.stroke();
+    }
+
+    return g;
+  }
+
+// --- Draw cubes ---
+function drawCubes() {
+  const g = new PIXI.Graphics();
+  for (const c of cubes) {
+    const px = c.x * gridSize;
+    const py = c.y * gridSize;
+
+    g.setStrokeStyle(0, 0xffffff); // white border
+    // g.fill(c.color);
+    g.rect(px, py, gridSize, gridSize);
+    g.fill(c.color);
+    g.stroke();
+  }
+  return g;
+}
+
+// --- Main draw ---
+function draw() {
+  world.removeChildren();
+
+  const grid = drawGrid();
+  const cubeGraphics = drawCubes();
+
+  world.addChild(grid);
+  world.addChild(cubeGraphics);
+
+  // Apply camera transform
+  world.scale.set(camera.zoom);
+  world.position.set(-camera.x * camera.zoom, -camera.y * camera.zoom);
+}
+
+draw();
+
+// --- Pan handling ---
+let dragging = false;
+let lastMouse = null;
+
+app.canvas.addEventListener('mousedown', e => {
+  dragging = true;
+  lastMouse = { x: e.clientX, y: e.clientY };
+});
+
+app.canvas.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = (e.clientX - lastMouse.x) / camera.zoom;
+  const dy = (e.clientY - lastMouse.y) / camera.zoom;
+  camera.x -= dx;
+  camera.y -= dy;
+  lastMouse = { x: e.clientX, y: e.clientY };
+  draw();
+});
+
+window.addEventListener('mouseup', () => dragging = false);
+
+// --- Zoom handling ---
+app.canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const zoomFactor = 1.1;
+  const mouseX = e.offsetX;
+  const mouseY = e.offsetY;
+
+  // world position under mouse
+  const worldX = (mouseX / camera.zoom) + camera.x;
+  const worldY = (mouseY / camera.zoom) + camera.y;
+
+  camera.zoom *= e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
+  camera.zoom = Math.max(0.1, Math.min(camera.zoom, 10));
+
+  camera.x = worldX - mouseX / camera.zoom;
+  camera.y = worldY - mouseY / camera.zoom;
+
+  draw();
+});
