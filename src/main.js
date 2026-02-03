@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 import { gridMap } from './lib.js';
 // --- Initialize Pixi Application ---
 const app = new PIXI.Application();
+const container = document.getElementById('canvas-container');
 await app.init({                    // initialize it
   width: window.innerWidth,
   height: window.innerHeight,
@@ -10,7 +11,7 @@ await app.init({                    // initialize it
 });
 
 // Append the canvas
-document.body.appendChild(app.canvas);
+container.appendChild(app.canvas);
 
 // --- World container for pan/zoom ---
 const world = new PIXI.Container();
@@ -30,7 +31,7 @@ const gridLineColor = 0x696969;
 //   // { x: -1, y: -2, color: 0x0000ff }
 // ];
 
-const cubes = gridMap();
+const cubes = new gridMap();
 
   // --- Draw grid function ---
   function drawGrid() {
@@ -66,14 +67,21 @@ const cubes = gridMap();
 // --- Draw cubes ---
 function drawCubes() {
   const g = new PIXI.Graphics();
-  for (const c of cubes) {
-    const px = c.x * gridSize;
-    const py = c.y * gridSize;
+  cubes.forEach((cube) => {
+    const px = cube.x * gridSize;
+    const py = cube.y * gridSize;
     g.rect(px, py, gridSize, gridSize);
-    g.fill(c.color);
-  }
+    g.fill(cube.color);
+  });
   return g;
 }
+
+// function drawCube(cube) {
+//   const px = c.x * gridSize;
+//   const py = cy * gridSize;
+//   g.rect(px, py, gridSize, gridSize);
+//   g.fill(c.color);
+// }
 
 // --- Main draw ---
 function draw() {
@@ -91,6 +99,30 @@ function draw() {
 }
 
 draw();
+
+function addCube(cordX, cordY, color) {
+  cubes.add(cordX, cordY, {x: cordX, y: cordY, color: color});
+  draw();
+}
+
+function checkCube(cordX, cordY) {
+  return cubes.get(cordX, cordY);
+}
+
+function removeCube(cordX, cordY) {
+  const remCube = cubes.clear(cordX, cordY);
+  draw();
+  return remCube;
+}
+
+function click(cordX, cordY) {
+  if (checkCube(cordX, cordY)) {
+    removeCube(cordX, cordY);
+  }
+  else {
+    addCube(cordX, cordY, 0x808080);
+  }
+}
 
 // --- Pan handling ---
 let dragging = false;
@@ -125,7 +157,8 @@ app.canvas.addEventListener('mouseup', e => {
   if (Math.abs(dx) < clickThreshold && Math.abs(dy) < clickThreshold) {
     const gridX = Math.floor((e.offsetX / camera.zoom + camera.x) / gridSize);
     const gridY = Math.floor((e.offsetY / camera.zoom + camera.y) / gridSize);
-    console.log('Grid clicked at:', gridX, gridY);
+    // console.log('Grid clicked at:', gridX, gridY);
+    click(gridX, gridY);
   }
 
   lastMouse = null;
@@ -151,3 +184,4 @@ app.canvas.addEventListener('wheel', e => {
 
 // Optional: prevent dragging from continuing outside canvas
 window.addEventListener('mouseleave', () => (dragging = false));
+window.addEventListener('resize', draw);

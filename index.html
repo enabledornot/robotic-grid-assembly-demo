@@ -2,13 +2,205 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Pixi Grid Example</title>
+    <title>Pixi Overlay UI</title>
+    
     <style>
-      body, html { margin:0; padding:0; overflow:hidden; }
-      canvas { display:block; }
+      body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        height: 100%;
+        background-color: #000; 
+        font-family: sans-serif;
+      }
+
+      /* Main App Container */
+      #app {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      /* --- SIDEBAR (Left) --- */
+      #sidebar {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        bottom: 80px; /* Stops 20px above the bottom bar */
+        width: 250px;
+        
+        background-color: #2c3e50;
+        color: white;
+        padding: 20px;
+        box-sizing: border-box;
+        border-radius: 4px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        z-index: 100; 
+        overflow-y: auto;
+      }
+
+      /* --- BOTTOM BAR (Full Width) --- */
+      #bottom-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        
+        background-color: #2c3e50;
+        color: white;
+        padding: 0 20px;
+        box-sizing: border-box;
+        border-top: 1px solid #34495e;
+        z-index: 100;
+        
+        display: flex;
+        align-items: center;
+        justify-content: center; /* Center the whole group */
+        gap: 20px;
+      }
+
+      /* Wrapper for Play Button + Slider */
+      .controls-group {
+        display: flex;
+        align-items: center;
+        width: 100%; /* Take full width of bar */
+        max-width: 1200px; /* Optional: Prevents it getting insanely wide on ultra-wide screens */
+        gap: 20px;
+      }
+
+      /* Play Button Container */
+      .icon-btn {
+        flex-shrink: 0; /* Prevents button from squishing */
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #34495e;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .icon-btn:hover {
+        background-color: #415b76;
+      }
+
+      .icon-btn svg {
+        width: 20px;
+        height: 20px;
+        fill: white;
+      }
+
+      /* Slider Wrapper */
+      .slider-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        flex: 1; /* This forces the slider to take ALL remaining space */
+        width: 0; /* Flexbox trick: ensures the width respects the flex-grow */
+      }
+
+      label {
+        font-size: 14px;
+        user-select: none;
+        white-space: nowrap; /* Keeps "Speed" label on one line */
+      }
+      
+      #speed-val {
+        min-width: 40px; /* Ensure number doesn't jump around */
+      }
+
+      /* Slider Input */
+      input[type=range] {
+        -webkit-appearance: none; 
+        width: 100%; /* Fills the .slider-wrapper */
+        background: transparent; 
+        flex: 1;
+      }
+      
+      input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 16px;
+        width: 16px;
+        border-radius: 50%;
+        background: #ecf0f1;
+        cursor: pointer;
+        margin-top: -6px; 
+      }
+      
+      input[type=range]::-webkit-slider-runnable-track {
+        width: 100%;
+        height: 4px;
+        cursor: pointer;
+        background: #7f8c8d;
+        border-radius: 2px;
+      }
+      
+      input[type=range]::-moz-range-thumb {
+        height: 16px;
+        width: 16px;
+        border: none;
+        border-radius: 50%;
+        background: #ecf0f1;
+        cursor: pointer;
+      }
+      
+      input[type=range]::-moz-range-track {
+        width: 100%;
+        height: 4px;
+        cursor: pointer;
+        background: #7f8c8d;
+        border-radius: 2px;
+      }
+
+      /* Canvas Container */
+      #canvas-container {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
     </style>
   </head>
   <body>
+    
+    <div id="app">
+      
+      <!-- Sidebar Overlay -->
+      <aside id="sidebar">
+        <h3>Wavefront Sweep</h3>
+        <button>Run Algorithm</button>
+        <p id="algorithm-output"></p>
+        <button>Tool B</button>
+      </aside>
+
+      <!-- Bottom Bar Overlay (Full Width) -->
+      <footer id="bottom-bar">
+        
+        <div class="controls-group">
+          
+          <!-- Play/Pause Button -->
+          <button id="play-btn" class="icon-btn" aria-label="Play">
+            <svg id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="icon-pause" viewBox="0 0 24 24" style="display: none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+
+          <!-- Slider Wrapper (The new flex container) -->
+          <div class="slider-wrapper">
+            <label for="speed-slider">Speed</label>
+            <input type="range" id="speed-slider" min="0" max="5" step="0.1" value="1">
+            <label id="speed-val">1.0x</label>
+          </div>
+
+        </div>
+      </footer>
+
+      <!-- Pixi Canvas Container -->
+      <div id="canvas-container"></div>
+      
+    </div>
+
     <script type="module" src="src/main.js"></script>
   </body>
 </html>
