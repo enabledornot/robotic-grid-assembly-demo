@@ -155,6 +155,35 @@
         border-radius: 2px;
       }
 
+      /* --- OUTPUT PANEL (inside sidebar) --- */
+      .output-panel {
+        margin-top: 15px;
+      }
+
+      .output-panel label {
+        display: block;
+        font-size: 11px;
+        color: #95a5a6;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+      }
+
+      #algorithm-output {
+        background-color: #1a252f;
+        border: 1px solid #34495e;
+        border-radius: 3px;
+        padding: 10px;
+        min-height: 80px;
+        max-height: 180px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 13px;
+        color: #ecf0f1;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+
       /* Canvas Container */
       #canvas-container {
         width: 100%;
@@ -170,9 +199,13 @@
       <!-- Sidebar Overlay -->
       <aside id="sidebar">
         <h3>Wavefront Sweep</h3>
-        <button>Run Algorithm</button>
-        <p id="algorithm-output"></p>
+        <button id="run-btn">Run Algorithm</button>
         <button>Tool B</button>
+
+        <div class="output-panel">
+          <label>Output</label>
+          <div id="algorithm-output"></div>
+        </div>
       </aside>
 
       <!-- Bottom Bar Overlay (Full Width) -->

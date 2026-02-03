@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { gridMap } from './lib.js';
+import { runAlgorithm as executeAlgorithm } from './algorithm.js';
 // --- Initialize Pixi Application ---
 const app = new PIXI.Application();
 const container = document.getElementById('canvas-container');
@@ -115,6 +116,31 @@ function removeCube(cordX, cordY) {
   return remCube;
 }
 
+function cubeToMatrix() {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let count = 0;
+
+  cubes.forEach((cube) => {
+    count++;
+    if (cube.x < minX) minX = cube.x;
+    if (cube.x > maxX) maxX = cube.x;
+    if (cube.y < minY) minY = cube.y;
+    if (cube.y > maxY) maxY = cube.y;
+  });
+
+  if (minX === Infinity) return { matrix: [], count: 0 };
+
+  const rows = maxY - minY + 1;
+  const cols = maxX - minX + 1;
+  const matrix = Array.from({ length: rows }, () => Array(cols).fill(false));
+
+  cubes.forEach((cube) => {
+    matrix[cube.y - minY][cube.x - minX] = true;
+  });
+
+  return { matrix, count };
+}
+
 function click(cordX, cordY) {
   if (checkCube(cordX, cordY)) {
     removeCube(cordX, cordY);
@@ -185,3 +211,37 @@ app.canvas.addEventListener('wheel', e => {
 // Optional: prevent dragging from continuing outside canvas
 window.addEventListener('mouseleave', () => (dragging = false));
 window.addEventListener('resize', draw);
+
+// --- Output Helper ---
+function clearOutput() {
+  const output = document.getElementById('algorithm-output');
+  output.textContent = '';
+  output.scrollTop = 0;
+}
+
+function appendOutput(text) {
+  const output = document.getElementById('algorithm-output');
+  output.textContent += (output.textContent ? '\n' : '') + text;
+  output.scrollTop = output.scrollHeight; // auto-scroll to bottom
+}
+
+// --- Run Algorithm ---
+function runAlgorithm() {
+  clearOutput();
+  appendOutput('Starting algorithm...');
+  const result = cubeToMatrix();
+  const { matrix, count } = result;
+
+  if (count === 0) {
+    appendOutput('No cubes placed on grid.');
+    return;
+  }
+
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+  appendOutput(`Matrix: ${rows}x${cols} (${count} cubes)`);
+
+  executeAlgorithm(matrix);
+}
+
+document.getElementById('run-btn').addEventListener('click', runAlgorithm);
