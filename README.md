@@ -4,13 +4,18 @@ An interactive web demo of the wavefront sweep algorithm. Place cells on a grid,
 
 ## Setup
 
-1. Install [Node.js](https://nodejs.org) (v18 or later)
-2. Clone the repo and install dependencies:
+1. Install [Node.js](https://nodejs.org) (v18 or later) if you don't already have it.
+2. Clone this repository:
+   ```sh
+   git clone <repo-url>
+   cd robotic-grid-assembly-demo
+   ```
+3. From inside the repo directory, install dependencies:
    ```sh
    npm install
    ```
-3. Start the dev server:
+4. Start the dev server (also from inside the repo directory):
    ```sh
    npm run dev
    ```
-   Then open the URL printed in the terminal (usually `http://localhost:5173`).
+   Open the URL printed in the terminal in your browser (usually `http://localhost:5173`).
