@@ -17,6 +17,17 @@ export class gridMap {
     forEach(fn) {
         this.map.forEach(fn);
     }
+    toJSON() {
+        const cells = [];
+        this.map.forEach(v => cells.push({ x: v.x, y: v.y }));
+        return cells;
+    }
+    fromJSON(cells) {
+        this.map.clear();
+        for (const cell of cells) {
+            this.add(cell.x, cell.y, { x: cell.x, y: cell.y, color: 0x808080 });
+        }
+    }
 }
 
 export class EventLog {

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Pixi Overlay UI</title>
+    <title>Wavefront Sweep</title>
     
     <style>
       body, html {
@@ -206,18 +206,30 @@
       <!-- Sidebar Overlay -->
       <aside id="sidebar">
         <h3>Wavefront Sweep</h3>
-        <button id="run-btn">Run Algorithm</button>
+        <div>
+          <label style="font-size: 12px; color: #95a5a6; display: block; margin-bottom: 4px;">Presets</label>
+          <select id="preset-select" style="width: 100%; background-color: #34495e; color: white; border: 1px solid #415b76; border-radius: 3px; padding: 5px 8px; font-size: 13px; cursor: pointer;">
+            <option value="">-- Load a preset --</option>
+          </select>
+        </div>
 
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button id="save-btn" style="flex: 1;">Save File</button>
+          <button id="load-btn" style="flex: 1;">Load File</button>
+        </div>
+        <input type="file" id="load-input" accept=".json" style="display: none;">
 
         <div style="margin-top: 15px;">
           <label style="font-size: 12px; color: #95a5a6; display: block; margin-bottom: 4px;">Animation Level</label>
           <select id="anim-level" style="width: 100%; background-color: #34495e; color: white; border: 1px solid #415b76; border-radius: 3px; padding: 5px 8px; font-size: 13px; cursor: pointer;">
             <option value="wavefront">Wavefront</option>
-            <option value="component">Component</option>
+            <option value="component" selected>Component</option>
             <option value="edge">Edge</option>
             <option value="full">Full</option>
           </select>
         </div>
+
+        <button id="run-btn" style="margin-top: 10px; width: 100%;">Run Algorithm</button>
 
         <div class="output-panel">
           <label>Output</label>

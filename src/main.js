@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { gridMap } from './lib.js';
 import { runAlgorithm as executeAlgorithm } from './algorithm.js';
+const presets = import.meta.glob('./models/*.json', { eager: true });
 // --- Initialize Pixi Application ---
 const app = new PIXI.Application();
 const container = document.getElementById('canvas-container');
@@ -239,6 +240,41 @@ function cubeToMatrix() {
   return { matrix, count, minX, minY };
 }
 
+function isConnected(matrix, count) {
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+
+  // Find first occupied cell
+  let startR = -1, startC = -1;
+  outer:
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (matrix[r][c]) { startR = r; startC = c; break outer; }
+    }
+  }
+
+  // BFS using 4-directional adjacency
+  const visited = new Set();
+  const queue = [[startR, startC]];
+  visited.add(`${startR},${startC}`);
+  const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
+  while (queue.length > 0) {
+    const [r, c] = queue.shift();
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr;
+      const nc = c + dc;
+      const key = `${nr},${nc}`;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && matrix[nr][nc] && !visited.has(key)) {
+        visited.add(key);
+        queue.push([nr, nc]);
+      }
+    }
+  }
+
+  return visited.size === count;
+}
+
 function click(cordX, cordY) {
   stopPlay();
   animState = null;
@@ -377,6 +413,11 @@ function runAlgorithm() {
   const cols = matrix[0].length;
   appendOutput(`Matrix: ${rows}x${cols} (${count} cubes)`);
 
+  if (!isConnected(matrix, count)) {
+    appendOutput('Error: Figure is not connected. All cubes must be adjacent (up/down/left/right).');
+    return;
+  }
+
   const { eventLog } = executeAlgorithm(matrix);
   edgeData = { eventLog, minX, minY };
   const vertCount = eventLog.events.filter(e => e.type === 'addEdge' && e.edgeType === 'vertical').length;
@@ -466,6 +507,111 @@ document.getElementById('clear-btn').addEventListener('click', () => {
   updatePlayIcon();
   cubes.map.clear();
   draw();
+});
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  const json = JSON.stringify(cubes.toJSON(), null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: 'grid.json',
+        types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(json);
+      await writable.close();
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      // Fall through on SecurityError etc. (e.g. file:// context)
+    }
+  }
+
+  // Firefox: mozSaveOrOpenBlob opens the native Save As dialog
+  if (window.mozSaveOrOpenBlob) {
+    window.mozSaveOrOpenBlob(blob, 'grid.json');
+  } else {
+    const name = prompt('Enter a filename:', 'grid');
+    if (name === null) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (name.trim() || 'grid') + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  }
+});
+
+document.getElementById('load-btn').addEventListener('click', () => {
+  document.getElementById('load-input').click();
+});
+
+document.getElementById('load-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+      cubes.fromJSON(JSON.parse(event.target.result));
+      stopPlay();
+      animState = null;
+      edgeData = null;
+      updateScrubber();
+      updatePlayIcon();
+      draw();
+    } catch (err) {
+      appendOutput('Error loading file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+function centerOnCubes() {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let count = 0;
+  cubes.forEach((cube) => {
+    count++;
+    if (cube.x < minX) minX = cube.x;
+    if (cube.x > maxX) maxX = cube.x;
+    if (cube.y < minY) minY = cube.y;
+    if (cube.y > maxY) maxY = cube.y;
+  });
+  if (count === 0) return;
+  camera.zoom = 1;
+  const centerX = (minX + maxX + 1) * gridSize / 2;
+  const centerY = (minY + maxY + 1) * gridSize / 2;
+  camera.x = centerX - app.screen.width / 2;
+  camera.y = centerY - app.screen.height / 2;
+}
+
+// --- Populate and handle presets dropdown ---
+const presetSelect = document.getElementById('preset-select');
+Object.keys(presets).sort().forEach(path => {
+  const name = path.split('/').pop().replace('.json', '');
+  const label = name.replace(/-/g, ' ');
+  const option = document.createElement('option');
+  option.value = path;
+  option.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+  presetSelect.appendChild(option);
+});
+
+presetSelect.addEventListener('change', () => {
+  const data = presets[presetSelect.value]?.default;
+  if (!data) return;
+  cubes.fromJSON(data);
+  stopPlay();
+  animState = null;
+  edgeData = null;
+  updateScrubber();
+  updatePlayIcon();
+  centerOnCubes();
+  draw();
+  presetSelect.value = '';
 });
 
 document.getElementById('play-btn').addEventListener('click', () => {
