@@ -53,10 +53,14 @@ export class EventLog {
                 for (let i = 0; i < len; i++) {
                     if (this.events[i].type === 'addEdge') steps.push(i + 1);
                 }
+                if (steps.length === 0 || steps[steps.length - 1] !== len) steps.push(len);
                 return steps;
             }
-            case 'component':
-                return this.componentBoundaries.filter((v, i) => v > 0 && (i === 0 || v !== this.componentBoundaries[i - 1]));
+            case 'component': {
+                const steps = this.componentBoundaries.filter((v, i) => v > 0 && (i === 0 || v !== this.componentBoundaries[i - 1]));
+                if (steps.length === 0 || steps[steps.length - 1] !== len) steps.push(len);
+                return steps;
+            }
             case 'wavefront':
                 return this.wavefrontBoundaries.filter((v, i) => v > 0 && (i === 0 || v !== this.wavefrontBoundaries[i - 1]));
             default:

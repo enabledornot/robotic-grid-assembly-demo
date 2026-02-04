@@ -87,6 +87,13 @@
         background-color: #415b76;
       }
 
+      .icon-btn.active {
+        background-color: #c0392b;
+      }
+      .icon-btn.active:hover {
+        background-color: #e74c3c;
+      }
+
       .icon-btn svg {
         width: 20px;
         height: 20px;
@@ -200,7 +207,7 @@
       <aside id="sidebar">
         <h3>Wavefront Sweep</h3>
         <button id="run-btn">Run Algorithm</button>
-        <button>Tool B</button>
+
 
         <div style="margin-top: 15px;">
           <label style="font-size: 12px; color: #95a5a6; display: block; margin-bottom: 4px;">Animation Level</label>
@@ -216,6 +223,17 @@
           <label>Output</label>
           <div id="algorithm-output"></div>
         </div>
+
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #34495e;">
+          <label style="font-size: 11px; color: #95a5a6; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 8px;">Controls</label>
+          <table style="width: 100%; font-size: 12px; color: #bdc3c7; border-collapse: collapse;">
+            <tr><td style="padding: 3px 0; color: #ecf0f1; width: 40%;">Click</td><td style="padding: 3px 0;">Toggle cell</td></tr>
+            <tr><td style="padding: 3px 0; color: #ecf0f1;">Shift + drag</td><td style="padding: 3px 0;">Paint / erase cells</td></tr>
+            <tr><td style="padding: 3px 0; color: #ecf0f1;">Drag</td><td style="padding: 3px 0;">Pan view</td></tr>
+            <tr><td style="padding: 3px 0; color: #ecf0f1;">Scroll</td><td style="padding: 3px 0;">Zoom</td></tr>
+            <tr><td style="padding: 3px 0; color: #ecf0f1;">Ctrl</td><td style="padding: 3px 0;">Toggle eraser</td></tr>
+          </table>
+        </div>
       </aside>
 
       <!-- Bottom Bar Overlay (Full Width) -->
@@ -223,6 +241,23 @@
         
         <div class="controls-group">
           
+          <!-- Eraser Toggle -->
+          <button id="eraser-btn" class="icon-btn" aria-label="Toggle Eraser">
+            <svg viewBox="0 0 24 24">
+              <g transform="rotate(-45 12 12)">
+                <rect x="5" y="9" width="14" height="6" fill="#ecf0f1"/>
+                <rect x="13" y="9" width="6" height="6" fill="#7f8c8d"/>
+              </g>
+            </svg>
+          </button>
+
+          <!-- Clear All Button -->
+          <button id="clear-btn" class="icon-btn" aria-label="Clear All">
+            <svg viewBox="0 0 24 24">
+              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+            </svg>
+          </button>
+
           <!-- Play/Pause Button -->
           <button id="play-btn" class="icon-btn" aria-label="Play">
             <svg id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>

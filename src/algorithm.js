@@ -338,6 +338,7 @@ function wavefront(d, T_minus, T_plus) {
     for (let row = rowStart; row <= rowEnd; row++) {
       eventLog.updateCell(vcomps[H].col, row, COLOR_PROCESSING);
     }
+    eventLog.markComponent();
 
     // Orient all vertical edges in H away from s(H)
     orientVerticalEdges(H);
@@ -354,7 +355,6 @@ function wavefront(d, T_minus, T_plus) {
     for (let row = rowStart; row <= rowEnd; row++) {
       eventLog.updateCell(vcomps[H].col, row, COLOR_VISITED);
     }
-    eventLog.markComponent();
   }
 }
 

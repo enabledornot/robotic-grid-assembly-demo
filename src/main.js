@@ -247,9 +247,16 @@ function click(cordX, cordY) {
   updatePlayIcon();
   if (checkCube(cordX, cordY)) {
     removeCube(cordX, cordY);
-  }
-  else {
+  } else if (!eraserActive) {
     addCube(cordX, cordY, 0x808080);
+  }
+}
+
+function paintCell(gridX, gridY) {
+  if (paintMode === 'add' && !checkCube(gridX, gridY)) {
+    addCube(gridX, gridY, 0x808080);
+  } else if (paintMode === 'remove' && checkCube(gridX, gridY)) {
+    removeCube(gridX, gridY);
   }
 }
 
@@ -258,14 +265,36 @@ let dragging = false;
 let lastMouse = null;
 let firstMouse = null;
 let clickThreshold = 5; // pixels
+let shiftDragging = false;
+let paintMode = null; // 'add' or 'remove'
+let eraserActive = false;
 
 app.canvas.addEventListener('mousedown', e => {
-  dragging = true;
-  lastMouse = { x: e.clientX, y: e.clientY };
-  firstMouse = { x: e.clientX, y: e.clientY };
+  if (e.shiftKey) {
+    shiftDragging = true;
+    const gridX = Math.floor((e.offsetX / camera.zoom + camera.x) / gridSize);
+    const gridY = Math.floor((e.offsetY / camera.zoom + camera.y) / gridSize);
+    paintMode = eraserActive ? 'remove' : 'add';
+    stopPlay();
+    animState = null;
+    edgeData = null;
+    updateScrubber();
+    updatePlayIcon();
+    paintCell(gridX, gridY);
+  } else {
+    dragging = true;
+    lastMouse = { x: e.clientX, y: e.clientY };
+    firstMouse = { x: e.clientX, y: e.clientY };
+  }
 });
 
 app.canvas.addEventListener('mousemove', e => {
+  if (shiftDragging) {
+    const gridX = Math.floor((e.offsetX / camera.zoom + camera.x) / gridSize);
+    const gridY = Math.floor((e.offsetY / camera.zoom + camera.y) / gridSize);
+    paintCell(gridX, gridY);
+    return;
+  }
   if (!dragging) return;
   const dx = (e.clientX - lastMouse.x) / camera.zoom;
   const dy = (e.clientY - lastMouse.y) / camera.zoom;
@@ -276,6 +305,11 @@ app.canvas.addEventListener('mousemove', e => {
 });
 
 app.canvas.addEventListener('mouseup', e => {
+  if (shiftDragging) {
+    shiftDragging = false;
+    paintMode = null;
+    return;
+  }
   if (!lastMouse) return;
   if (!firstMouse) return;
   dragging = false;
@@ -312,7 +346,7 @@ app.canvas.addEventListener('wheel', e => {
 });
 
 // Optional: prevent dragging from continuing outside canvas
-window.addEventListener('mouseleave', () => (dragging = false));
+window.addEventListener('mouseleave', () => { dragging = false; shiftDragging = false; });
 window.addEventListener('resize', draw);
 
 // --- Output Helper ---
@@ -412,8 +446,31 @@ function startPlay() {
 // --- Event handlers ---
 document.getElementById('run-btn').addEventListener('click', runAlgorithm);
 
+document.getElementById('eraser-btn').addEventListener('click', () => {
+  eraserActive = !eraserActive;
+  document.getElementById('eraser-btn').classList.toggle('active', eraserActive);
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Control' && !e.repeat) {
+    eraserActive = !eraserActive;
+    document.getElementById('eraser-btn').classList.toggle('active', eraserActive);
+  }
+});
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  stopPlay();
+  animState = null;
+  edgeData = null;
+  updateScrubber();
+  updatePlayIcon();
+  cubes.map.clear();
+  draw();
+});
+
 document.getElementById('play-btn').addEventListener('click', () => {
   if (playInterval !== null) stopPlay();
+  else if (!edgeData) runAlgorithm();
   else startPlay();
 });
 
