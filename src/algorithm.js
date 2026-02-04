@@ -13,6 +13,7 @@ function addVerticalComponent(col, rowStart, rowEnd) {
     isVisited: false,
     col: col,
     row_range: [rowStart, rowEnd],
+    row_seed: undefined,
     adj_comp_range_left: undefined,
     adj_comp_range_right: undefined,
     edge_range_vert: undefined,
@@ -203,6 +204,139 @@ function initalizeVerticalComponents(matrix) {
 }
 
 
+// Returns any vertex (row) in H that has a visited neighbor in column x(H) - d
+function findSeedVertex(H, d) {
+  const comp = vcomps[H];
+  const adjRange = d === 1 ? comp.adj_comp_range_left : comp.adj_comp_range_right;
+  if (adjRange === undefined) return undefined;
+
+  const [adjStart, adjEnd] = adjRange;
+  for (let j = adjStart; j < adjEnd; j++) {
+    if (!vcomps[j].isVisited) continue;
+    const overlapStart = Math.max(comp.row_range[0], vcomps[j].row_range[0]);
+    const overlapEnd = Math.min(comp.row_range[1], vcomps[j].row_range[1]);
+    if (overlapStart <= overlapEnd) return overlapStart;
+  }
+  return undefined;
+}
+
+// Orient each vertical edge in H away from s(H):
+//   edge at row >= s points down (+1), edge at row < s points up (-1)
+function orientVerticalEdges(H) {
+  const comp = vcomps[H];
+  const [edgeStart, edgeEnd] = comp.edge_range_vert;
+  const s = comp.row_seed;
+
+  for (let i = edgeStart; i < edgeEnd; i++) {
+    vert_edges[i].orientation = vert_edges[i].row >= s ? 1 : -1;
+  }
+}
+
+// Orient all horizontal edges in H's forward direction (d) from H into K.
+//   d = +1 → use edge_range_right, orient +1 (left→right)
+//   d = -1 → use edge_range_left,  orient -1 (right→left)
+function orientHorizontalEdges(H, d) {
+  const comp = vcomps[H];
+  const edgeRange = d === 1 ? comp.edge_range_right : comp.edge_range_left;
+  if (edgeRange === undefined) return;
+
+  const [edgeStart, edgeEnd] = edgeRange;
+  for (let i = edgeStart; i < edgeEnd; i++) {
+    horz_edges[i].orientation = d;
+  }
+}
+
+// Add each forward neighbor K of H to W if K is unvisited and not already in W
+function expandForwardNeighbors(H, d, W) {
+  const comp = vcomps[H];
+  const adjRange = d === 1 ? comp.adj_comp_range_right : comp.adj_comp_range_left;
+  if (adjRange === undefined) return;
+
+  const [adjStart, adjEnd] = adjRange;
+  for (let j = adjStart; j < adjEnd; j++) {
+    if (!vcomps[j].isVisited && !W.has(j)) W.add(j);
+  }
+}
+
+// Orients edges between H and inward neighbor K from K into H,
+// but only if no edge between them has been oriented yet.
+function orientInwardEdgesIfNeeded(H, K, d) {
+  const edgeRange = d === 1 ? vcomps[H].edge_range_left : vcomps[H].edge_range_right;
+  if (edgeRange === undefined) return;
+
+  const [edgeStart, edgeEnd] = edgeRange;
+  const toOrient = [];
+
+  for (let i = edgeStart; i < edgeEnd; i++) {
+    const neighbor = d === 1 ? horz_edges[i].vcomp_1 : horz_edges[i].vcomp_2;
+    if (neighbor !== K) continue;
+    if (horz_edges[i].orientation !== undefined) return;
+    toOrient.push(i);
+  }
+
+  for (const i of toOrient) {
+    horz_edges[i].orientation = d;
+  }
+}
+
+// Walk inward neighbors (-d side) of H:
+//   visited K with unoriented edges → orient from K into H
+//   unvisited K not yet in T_{-d}   → add to T_{-d}
+function processInwardNeighbors(H, d, T_minus, T_plus) {
+  const comp = vcomps[H];
+  const adjRange = d === 1 ? comp.adj_comp_range_left : comp.adj_comp_range_right;
+  if (adjRange === undefined) return;
+
+  const T_neg_d = d === 1 ? T_minus : T_plus;
+  const [adjStart, adjEnd] = adjRange;
+  for (let j = adjStart; j < adjEnd; j++) {
+    if (vcomps[j].isVisited) {
+      orientInwardEdgesIfNeeded(H, j, d);
+    } else if (!T_neg_d.has(j)) {
+      T_neg_d.add(j);
+    }
+  }
+}
+
+function wavefront(d, T_minus, T_plus) {
+  // Let W <- T_d and set T_d to empty
+  const T_d = d === 1 ? T_plus : T_minus;
+  const W = new Set(T_d);
+  T_d.clear();
+
+  // while W is not empty do
+  while (W.size > 0) {
+    // Remove some component H from W
+    const H = W.values().next().value;
+    W.delete(H);
+
+    // if H is visited then continue
+    if (vcomps[H].isVisited) continue;
+
+    // if s(H) is undefined then
+    //   Set s(H) to any vertex of H that has a visited neighbor in column x(H) - d
+    if (vcomps[H].row_seed === undefined) {
+      vcomps[H].row_seed = findSeedVertex(H, d);
+    }
+
+    // Orient all vertical edges in H away from s(H)
+    orientVerticalEdges(H);
+    // forward side: expand this wave in direction d
+    orientHorizontalEdges(H, d);
+    expandForwardNeighbors(H, d, W);
+    // Inward side: build the frontier for the next wave in direction -d
+    // foreach inward neighbor component K of H do
+      // if K is visited and no horizontal edge between H and K is oriented yet then
+        // orient all horizontal edges between K and H from K into H
+      // if K is unvisited and K is not in T_-d then
+        // Insert K into T_-d
+    processInwardNeighbors(H, d, T_minus, T_plus);
+
+    // Mark H as visited
+    vcomps[H].isVisited = true;
+  }
+}
+
 /**
  * Runs the wavefront sweep algorithm on the provided matrix grid.
  * @param {boolean[][]} matrix - 2D matrix where true represents a cube and false represents empty space
@@ -210,8 +344,31 @@ function initalizeVerticalComponents(matrix) {
  */
 export function runAlgorithm(matrix) {
   reset();
+  // Compute column components Hxi and their horizontal adjacencies
+  // For all components H, mark H as unvisited and set s(H)
+
   initalizeVerticalComponents(matrix);
   console.log(vcomps);
   console.log(vert_edges);
   console.log(horz_edges);
+  // Initialize global frontier worklists T-1 and T+1 as empty sets
+  const T_minus = new Set();
+  const T_plus = new Set();
+  // Set H_root to the bottom-leftmost component
+  let H_root = 0;
+
+  // Set s(Hroot) to the lowest vertex in Hroot
+  vcomps[H_root].row_seed = vcomps[H_root].row_range[0];
+
+  // Set d = +1 and T_d <- {H_root}
+  let d = 1;
+  T_plus.add(H_root);
+
+  // while Td is not empty do
+  while ((d === 1 ? T_plus : T_minus).size > 0) {
+    wavefront(d, T_minus, T_plus);
+    d = -d;
+  }
+
+  return { vert_edges, horz_edges, vcomps };
 }

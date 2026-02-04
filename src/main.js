@@ -24,6 +24,8 @@ const camera = { x: 0, y: 0, zoom: 1 };
 // Grid settings
 const gridSize = 50;
 const gridLineColor = 0x696969;
+const dotRadius = gridSize * 0.1;
+const arrowGap = gridSize * 0.05;
 
 // Example cubes
 // const cubes = [
@@ -33,6 +35,7 @@ const gridLineColor = 0x696969;
 // ];
 
 const cubes = new gridMap();
+let edgeData = null;
 
   // --- Draw grid function ---
   function drawGrid() {
@@ -73,7 +76,85 @@ function drawCubes() {
     const py = cube.y * gridSize;
     g.rect(px, py, gridSize, gridSize);
     g.fill(cube.color);
+    if (edgeData) {
+      g.circle(px + gridSize / 2, py + gridSize / 2, dotRadius);
+      g.fill(0xFF4444);
+    }
   });
+  return g;
+}
+
+// --- Draw a single arrow from (x1,y1) to (x2,y2) ---
+function drawArrow(g, x1, y1, x2, y2, color) {
+  const headLen = gridSize * 0.25;
+  const headWidth = gridSize * 0.15;
+
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const ux = dx / len;
+  const uy = dy / len;
+
+  // Pull start/end inward past the dot with a visible gap
+  const offset = dotRadius + arrowGap;
+  const sx = x1 + offset * ux;
+  const sy = y1 + offset * uy;
+  const ex = x2 - offset * ux;
+  const ey = y2 - offset * uy;
+
+  // Shaft stops at arrowhead base
+  const baseX = ex - headLen * ux;
+  const baseY = ey - headLen * uy;
+
+  g.lineStyle(2, color);
+  g.moveTo(sx, sy);
+  g.lineTo(baseX, baseY);
+  g.stroke();
+
+  // Filled arrowhead triangle
+  g.moveTo(ex, ey);
+  g.lineTo(baseX - headWidth * uy, baseY + headWidth * ux);
+  g.lineTo(baseX + headWidth * uy, baseY - headWidth * ux);
+  g.closePath();
+  g.fill(color);
+}
+
+// --- Draw oriented edges as arrows ---
+function drawEdges() {
+  const g = new PIXI.Graphics();
+  if (!edgeData) return g;
+
+  const { vert_edges, horz_edges, vcomps, minX, minY } = edgeData;
+  const color = 0xFF4444;
+
+  // Vertical edges: edge at (col, row) connects cube (col,row) ↔ (col,row+1)
+  for (const edge of vert_edges) {
+    if (edge.orientation === undefined) continue;
+    const col = edge.col + minX;
+    const fromRow = (edge.orientation === 1 ? edge.row     : edge.row + 1) + minY;
+    const toRow   = (edge.orientation === 1 ? edge.row + 1 : edge.row)     + minY;
+    drawArrow(g,
+      (col + 0.5) * gridSize, (fromRow + 0.5) * gridSize,
+      (col + 0.5) * gridSize, (toRow   + 0.5) * gridSize,
+      color
+    );
+  }
+
+  // Horizontal edges: vcomp_1 is left col, vcomp_2 is right col
+  for (const edge of horz_edges) {
+    if (edge.orientation === undefined) continue;
+    const leftCol  = vcomps[edge.vcomp_1].col + minX;
+    const rightCol = vcomps[edge.vcomp_2].col + minX;
+    const row = edge.row + minY;
+    const fromCol = edge.orientation === 1 ? leftCol  : rightCol;
+    const toCol   = edge.orientation === 1 ? rightCol : leftCol;
+    drawArrow(g,
+      (fromCol + 0.5) * gridSize, (row + 0.5) * gridSize,
+      (toCol   + 0.5) * gridSize, (row + 0.5) * gridSize,
+      color
+    );
+  }
+
   return g;
 }
 
@@ -90,9 +171,11 @@ function draw() {
 
   const grid = drawGrid();
   const cubeGraphics = drawCubes();
+  const edgeGraphics = drawEdges();
 
   world.addChild(grid);
   world.addChild(cubeGraphics);
+  world.addChild(edgeGraphics);
 
   // Apply camera transform
   world.scale.set(camera.zoom);
@@ -138,10 +221,11 @@ function cubeToMatrix() {
     matrix[cube.y - minY][cube.x - minX] = true;
   });
 
-  return { matrix, count };
+  return { matrix, count, minX, minY };
 }
 
 function click(cordX, cordY) {
+  edgeData = null;
   if (checkCube(cordX, cordY)) {
     removeCube(cordX, cordY);
   }
@@ -229,8 +313,7 @@ function appendOutput(text) {
 function runAlgorithm() {
   clearOutput();
   appendOutput('Starting algorithm...');
-  const result = cubeToMatrix();
-  const { matrix, count } = result;
+  const { matrix, count, minX, minY } = cubeToMatrix();
 
   if (count === 0) {
     appendOutput('No cubes placed on grid.');
@@ -241,7 +324,11 @@ function runAlgorithm() {
   const cols = matrix[0].length;
   appendOutput(`Matrix: ${rows}x${cols} (${count} cubes)`);
 
-  executeAlgorithm(matrix);
+  const { vert_edges, horz_edges, vcomps } = executeAlgorithm(matrix);
+  edgeData = { vert_edges, horz_edges, vcomps, minX, minY };
+  appendOutput(`Vertical edges: ${vert_edges.length}`);
+  appendOutput(`Horizontal edges: ${horz_edges.length}`);
+  draw();
 }
 
 document.getElementById('run-btn').addEventListener('click', runAlgorithm);
