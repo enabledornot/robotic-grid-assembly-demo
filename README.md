@@ -18,4 +18,4 @@ An interactive web demo of the wavefront sweep algorithm. Place cells on a grid,
    ```sh
    npm run dev
    ```
-   Open the URL printed in the terminal in your browser (usually `http://localhost:5173`).
+   Open the URL printed in the terminal in your browser (usually `http:localhost:5173`).
