@@ -23,7 +23,7 @@ const camera = { x: 0, y: 0, zoom: 1 };
 
 // Grid settings
 const gridSize = 50;
-const gridLineColor = 0x696969;
+const gridLineColor = 0xA0A0A0;
 const dotRadius = gridSize * 0.1;
 const arrowGap = gridSize * 0.05;
 
@@ -71,16 +71,21 @@ let playInterval = null;
   }
 
 // --- Draw cubes ---
-function drawCubes() {
+function drawCubes(cellColors) {
   const g = new PIXI.Graphics();
   cubes.forEach((cube) => {
     const px = cube.x * gridSize;
     const py = cube.y * gridSize;
+    let color = cube.color;
+    if (edgeData) {
+      const key = `${cube.x - edgeData.minX},${cube.y - edgeData.minY}`;
+      if (cellColors[key] !== undefined) color = cellColors[key];
+    }
     g.rect(px, py, gridSize, gridSize);
-    g.fill(cube.color);
+    g.fill(color);
     if (edgeData) {
       g.circle(px + gridSize / 2, py + gridSize / 2, dotRadius);
-      g.fill(0xFF4444);
+      g.fill(0x000000);
     }
   });
   return g;
@@ -108,10 +113,9 @@ function drawArrow(g, x1, y1, x2, y2, color) {
   const baseX = ex - headLen * ux;
   const baseY = ey - headLen * uy;
 
-  g.lineStyle(2, color);
   g.moveTo(sx, sy);
   g.lineTo(baseX, baseY);
-  g.stroke();
+  g.stroke({ color, width: 2 });
 
   // Filled arrowhead triangle
   g.moveTo(ex, ey);
@@ -122,40 +126,35 @@ function drawArrow(g, x1, y1, x2, y2, color) {
 }
 
 // --- Draw oriented edges as arrows ---
-function drawEdges() {
+function drawEdges(edges) {
   const g = new PIXI.Graphics();
   if (!edgeData) return g;
 
-  const { vert_edges, horz_edges, vcomps, minX, minY } = edgeData;
-  const color = 0xFF4444;
-  const maxVisible = animState ? (animState.position === 0 ? 0 : animState.steps[animState.position - 1]) : Infinity;
+  const { minX, minY } = edgeData;
+  const color = 0x000000;
 
-  // Vertical edges: edge at (col, row) connects cube (col,row) ↔ (col,row+1)
-  for (const edge of vert_edges) {
-    if (edge.orientation === undefined || edge.eventIndex >= maxVisible) continue;
-    const col = edge.col + minX;
-    const fromRow = (edge.orientation === 1 ? edge.row     : edge.row + 1) + minY;
-    const toRow   = (edge.orientation === 1 ? edge.row + 1 : edge.row)     + minY;
-    drawArrow(g,
-      (col + 0.5) * gridSize, (fromRow + 0.5) * gridSize,
-      (col + 0.5) * gridSize, (toRow   + 0.5) * gridSize,
-      color
-    );
-  }
-
-  // Horizontal edges: vcomp_1 is left col, vcomp_2 is right col
-  for (const edge of horz_edges) {
-    if (edge.orientation === undefined || edge.eventIndex >= maxVisible) continue;
-    const leftCol  = vcomps[edge.vcomp_1].col + minX;
-    const rightCol = vcomps[edge.vcomp_2].col + minX;
-    const row = edge.row + minY;
-    const fromCol = edge.orientation === 1 ? leftCol  : rightCol;
-    const toCol   = edge.orientation === 1 ? rightCol : leftCol;
-    drawArrow(g,
-      (fromCol + 0.5) * gridSize, (row + 0.5) * gridSize,
-      (toCol   + 0.5) * gridSize, (row + 0.5) * gridSize,
-      color
-    );
+  for (const edge of edges) {
+    if (edge.edgeType === 'vertical') {
+      const col = edge.col + minX;
+      const fromRow = (edge.orientation === 1 ? edge.row     : edge.row + 1) + minY;
+      const toRow   = (edge.orientation === 1 ? edge.row + 1 : edge.row)     + minY;
+      drawArrow(g,
+        (col + 0.5) * gridSize, (fromRow + 0.5) * gridSize,
+        (col + 0.5) * gridSize, (toRow   + 0.5) * gridSize,
+        color
+      );
+    } else if (edge.edgeType === 'horizontal') {
+      const leftCol  = edge.col + minX;
+      const rightCol = edge.col + 1 + minX;
+      const row = edge.row + minY;
+      const fromCol = edge.orientation === 1 ? leftCol  : rightCol;
+      const toCol   = edge.orientation === 1 ? rightCol : leftCol;
+      drawArrow(g,
+        (fromCol + 0.5) * gridSize, (row + 0.5) * gridSize,
+        (toCol   + 0.5) * gridSize, (row + 0.5) * gridSize,
+        color
+      );
+    }
   }
 
   return g;
@@ -172,9 +171,22 @@ function drawEdges() {
 function draw() {
   world.removeChildren();
 
+  // Replay event log up to current animation position
+  const cellColors = {};
+  const edges = [];
+  if (edgeData && animState) {
+    const maxEvent = animState.position === 0 ? 0 : animState.steps[animState.position - 1];
+    const events = edgeData.eventLog.events;
+    for (let i = 0; i < maxEvent; i++) {
+      const ev = events[i];
+      if (ev.type === 'updateCell') cellColors[`${ev.col},${ev.row}`] = ev.color;
+      else if (ev.type === 'addEdge') edges.push(ev);
+    }
+  }
+
   const grid = drawGrid();
-  const cubeGraphics = drawCubes();
-  const edgeGraphics = drawEdges();
+  const cubeGraphics = drawCubes(cellColors);
+  const edgeGraphics = drawEdges(edges);
 
   world.addChild(grid);
   world.addChild(cubeGraphics);
@@ -331,10 +343,13 @@ function runAlgorithm() {
   const cols = matrix[0].length;
   appendOutput(`Matrix: ${rows}x${cols} (${count} cubes)`);
 
-  const { vert_edges, horz_edges, vcomps, totalEvents, componentSteps, wavefrontSteps } = executeAlgorithm(matrix);
-  edgeData = { vert_edges, horz_edges, vcomps, minX, minY, totalEvents, componentSteps, wavefrontSteps };
-  appendOutput(`Vertical edges: ${vert_edges.length}`);
-  appendOutput(`Horizontal edges: ${horz_edges.length}`);
+  const { eventLog } = executeAlgorithm(matrix);
+  edgeData = { eventLog, minX, minY };
+  const vertCount = eventLog.events.filter(e => e.type === 'addEdge' && e.edgeType === 'vertical').length;
+  const horzCount = eventLog.events.filter(e => e.type === 'addEdge' && e.edgeType === 'horizontal').length;
+  appendOutput(`Vertical edges: ${vertCount}`);
+  appendOutput(`Horizontal edges: ${horzCount}`);
+  appendOutput(`Steps: wavefront=${eventLog.stepsForLevel('wavefront').length} component=${eventLog.stepsForLevel('component').length} edge=${eventLog.stepsForLevel('edge').length} full=${eventLog.stepsForLevel('full').length}`);
   const level = document.getElementById('anim-level').value;
   animState = { steps: computeSteps(level), position: 0 };
   updateScrubber();
@@ -345,12 +360,7 @@ function runAlgorithm() {
 // --- Animation helpers ---
 function computeSteps(level) {
   if (!edgeData) return [];
-  const { componentSteps, wavefrontSteps, totalEvents } = edgeData;
-  let raw;
-  if (level === 'wavefront') raw = wavefrontSteps;
-  else if (level === 'component') raw = componentSteps;
-  else raw = Array.from({ length: totalEvents }, (_, i) => i + 1);
-  return raw.filter((v, i) => v > 0 && (i === 0 || v !== raw[i - 1]));
+  return edgeData.eventLog.stepsForLevel(level);
 }
 
 function updateScrubber() {

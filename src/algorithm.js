@@ -1,17 +1,19 @@
+import { EventLog } from './lib.js';
+
 const vcomps = [];
 const vert_edges = [];
 const horz_edges = [];
-let eventCount = 0;
-const componentSteps = [];
-const wavefrontSteps = [];
+let eventLog;
+
+const COLOR_ADDED      = 0xFFB3B3; // light red
+const COLOR_PROCESSING = 0x90EE90; // light green
+const COLOR_VISITED    = 0xADD8E6; // light blue
 
 function reset() {
   vcomps.length = 0;
   vert_edges.length = 0;
   horz_edges.length = 0;
-  eventCount = 0;
-  componentSteps.length = 0;
-  wavefrontSteps.length = 0;
+  eventLog = new EventLog();
 }
 
 function addVerticalComponent(col, rowStart, rowEnd) {
@@ -26,6 +28,9 @@ function addVerticalComponent(col, rowStart, rowEnd) {
     edge_range_left: undefined,
     edge_range_right: undefined
   });
+  for (let row = rowStart; row <= rowEnd; row++) {
+    eventLog.updateCell(col, row, COLOR_ADDED);
+  }
 }
 
 function rowRangesOverlap(range1, range2) {
@@ -77,8 +82,7 @@ function computeHorizontalEdges() {
 
         for (let row = overlapStart; row <= overlapEnd; row++) {
           horz_edges.push({
-            vcomp_1: i,
-            vcomp_2: j,
+            col: vcomp.col,
             row: row,
             orientation: undefined
           });
@@ -90,15 +94,16 @@ function computeHorizontalEdges() {
     }
   }
 
-  // Second pass: set left ranges by finding edges where vcomp_2 === i
+  // Second pass: set left ranges by finding edges at col-1 within this component's row range
   for (let i = 0; i < vcomps.length; i++) {
     if (vcomps[i].adj_comp_range_left !== undefined) {
+      const targetCol = vcomps[i].col - 1;
+      const [rowStart, rowEnd] = vcomps[i].row_range;
       let leftRangeStart = -1;
       let leftRangeEnd = -1;
 
-      // Find first and last edge where this vcomp is vcomp_2
       for (let j = 0; j < horz_edges.length; j++) {
-        if (horz_edges[j].vcomp_2 === i) {
+        if (horz_edges[j].col === targetCol && horz_edges[j].row >= rowStart && horz_edges[j].row <= rowEnd) {
           if (leftRangeStart === -1) leftRangeStart = j;
           leftRangeEnd = j + 1;
         }
@@ -235,7 +240,7 @@ function orientVerticalEdges(H) {
 
   for (let i = edgeStart; i < edgeEnd; i++) {
     vert_edges[i].orientation = vert_edges[i].row >= s ? 1 : -1;
-    vert_edges[i].eventIndex = eventCount++;
+    eventLog.addEdge('vertical', vert_edges[i].col, vert_edges[i].row, vert_edges[i].orientation);
   }
 }
 
@@ -250,7 +255,7 @@ function orientHorizontalEdges(H, d) {
   const [edgeStart, edgeEnd] = edgeRange;
   for (let i = edgeStart; i < edgeEnd; i++) {
     horz_edges[i].orientation = d;
-    horz_edges[i].eventIndex = eventCount++;
+    eventLog.addEdge('horizontal', horz_edges[i].col, horz_edges[i].row, d);
   }
 }
 
@@ -275,16 +280,16 @@ function orientInwardEdgesIfNeeded(H, K, d) {
   const [edgeStart, edgeEnd] = edgeRange;
   const toOrient = [];
 
+  const [kRowStart, kRowEnd] = vcomps[K].row_range;
   for (let i = edgeStart; i < edgeEnd; i++) {
-    const neighbor = d === 1 ? horz_edges[i].vcomp_1 : horz_edges[i].vcomp_2;
-    if (neighbor !== K) continue;
+    if (horz_edges[i].row < kRowStart || horz_edges[i].row > kRowEnd) continue;
     if (horz_edges[i].orientation !== undefined) return;
     toOrient.push(i);
   }
 
   for (const i of toOrient) {
     horz_edges[i].orientation = d;
-    horz_edges[i].eventIndex = eventCount++;
+    eventLog.addEdge('horizontal', horz_edges[i].col, horz_edges[i].row, d);
   }
 }
 
@@ -328,22 +333,28 @@ function wavefront(d, T_minus, T_plus) {
       vcomps[H].row_seed = findSeedVertex(H, d);
     }
 
+    // Emit processing start for all cells in H
+    const [rowStart, rowEnd] = vcomps[H].row_range;
+    for (let row = rowStart; row <= rowEnd; row++) {
+      eventLog.updateCell(vcomps[H].col, row, COLOR_PROCESSING);
+    }
+
     // Orient all vertical edges in H away from s(H)
     orientVerticalEdges(H);
     // forward side: expand this wave in direction d
     orientHorizontalEdges(H, d);
     expandForwardNeighbors(H, d, W);
     // Inward side: build the frontier for the next wave in direction -d
-    // foreach inward neighbor component K of H do
-      // if K is visited and no horizontal edge between H and K is oriented yet then
-        // orient all horizontal edges between K and H from K into H
-      // if K is unvisited and K is not in T_-d then
-        // Insert K into T_-d
     processInwardNeighbors(H, d, T_minus, T_plus);
 
     // Mark H as visited
     vcomps[H].isVisited = true;
-    componentSteps.push(eventCount);
+
+    // Emit visited for all cells in H
+    for (let row = rowStart; row <= rowEnd; row++) {
+      eventLog.updateCell(vcomps[H].col, row, COLOR_VISITED);
+    }
+    eventLog.markComponent();
   }
 }
 
@@ -377,9 +388,9 @@ export function runAlgorithm(matrix) {
   // while Td is not empty do
   while ((d === 1 ? T_plus : T_minus).size > 0) {
     wavefront(d, T_minus, T_plus);
-    wavefrontSteps.push(eventCount);
+    eventLog.markWavefront();
     d = -d;
   }
 
-  return { vert_edges, horz_edges, vcomps, totalEvents: eventCount, componentSteps: [...componentSteps], wavefrontSteps: [...wavefrontSteps] };
+  return { eventLog };
 }
