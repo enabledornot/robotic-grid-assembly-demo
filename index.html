@@ -202,6 +202,15 @@
         <button id="run-btn">Run Algorithm</button>
         <button>Tool B</button>
 
+        <div style="margin-top: 15px;">
+          <label style="font-size: 12px; color: #95a5a6; display: block; margin-bottom: 4px;">Animation Level</label>
+          <select id="anim-level" style="width: 100%; background-color: #34495e; color: white; border: 1px solid #415b76; border-radius: 3px; padding: 5px 8px; font-size: 13px; cursor: pointer;">
+            <option value="wavefront">Wavefront</option>
+            <option value="component">Component</option>
+            <option value="edge">Edge</option>
+          </select>
+        </div>
+
         <div class="output-panel">
           <label>Output</label>
           <div id="algorithm-output"></div>
@@ -221,9 +230,9 @@
 
           <!-- Slider Wrapper (The new flex container) -->
           <div class="slider-wrapper">
-            <label for="speed-slider">Speed</label>
-            <input type="range" id="speed-slider" min="0" max="5" step="0.1" value="1">
-            <label id="speed-val">1.0x</label>
+            <label for="speed-slider">Progress</label>
+            <input type="range" id="speed-slider" min="0" max="0" step="1" value="0">
+            <label id="speed-val">0 / 0</label>
           </div>
 
         </div>

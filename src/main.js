@@ -36,6 +36,8 @@ const arrowGap = gridSize * 0.05;
 
 const cubes = new gridMap();
 let edgeData = null;
+let animState = null;
+let playInterval = null;
 
   // --- Draw grid function ---
   function drawGrid() {
@@ -126,10 +128,11 @@ function drawEdges() {
 
   const { vert_edges, horz_edges, vcomps, minX, minY } = edgeData;
   const color = 0xFF4444;
+  const maxVisible = animState ? (animState.position === 0 ? 0 : animState.steps[animState.position - 1]) : Infinity;
 
   // Vertical edges: edge at (col, row) connects cube (col,row) ↔ (col,row+1)
   for (const edge of vert_edges) {
-    if (edge.orientation === undefined) continue;
+    if (edge.orientation === undefined || edge.eventIndex >= maxVisible) continue;
     const col = edge.col + minX;
     const fromRow = (edge.orientation === 1 ? edge.row     : edge.row + 1) + minY;
     const toRow   = (edge.orientation === 1 ? edge.row + 1 : edge.row)     + minY;
@@ -142,7 +145,7 @@ function drawEdges() {
 
   // Horizontal edges: vcomp_1 is left col, vcomp_2 is right col
   for (const edge of horz_edges) {
-    if (edge.orientation === undefined) continue;
+    if (edge.orientation === undefined || edge.eventIndex >= maxVisible) continue;
     const leftCol  = vcomps[edge.vcomp_1].col + minX;
     const rightCol = vcomps[edge.vcomp_2].col + minX;
     const row = edge.row + minY;
@@ -225,7 +228,11 @@ function cubeToMatrix() {
 }
 
 function click(cordX, cordY) {
+  stopPlay();
+  animState = null;
   edgeData = null;
+  updateScrubber();
+  updatePlayIcon();
   if (checkCube(cordX, cordY)) {
     removeCube(cordX, cordY);
   }
@@ -324,11 +331,94 @@ function runAlgorithm() {
   const cols = matrix[0].length;
   appendOutput(`Matrix: ${rows}x${cols} (${count} cubes)`);
 
-  const { vert_edges, horz_edges, vcomps } = executeAlgorithm(matrix);
-  edgeData = { vert_edges, horz_edges, vcomps, minX, minY };
+  const { vert_edges, horz_edges, vcomps, totalEvents, componentSteps, wavefrontSteps } = executeAlgorithm(matrix);
+  edgeData = { vert_edges, horz_edges, vcomps, minX, minY, totalEvents, componentSteps, wavefrontSteps };
   appendOutput(`Vertical edges: ${vert_edges.length}`);
   appendOutput(`Horizontal edges: ${horz_edges.length}`);
+  const level = document.getElementById('anim-level').value;
+  animState = { steps: computeSteps(level), position: 0 };
+  updateScrubber();
   draw();
+  startPlay();
 }
 
+// --- Animation helpers ---
+function computeSteps(level) {
+  if (!edgeData) return [];
+  const { componentSteps, wavefrontSteps, totalEvents } = edgeData;
+  let raw;
+  if (level === 'wavefront') raw = wavefrontSteps;
+  else if (level === 'component') raw = componentSteps;
+  else raw = Array.from({ length: totalEvents }, (_, i) => i + 1);
+  return raw.filter((v, i) => v > 0 && (i === 0 || v !== raw[i - 1]));
+}
+
+function updateScrubber() {
+  const slider = document.getElementById('speed-slider');
+  const label = document.getElementById('speed-val');
+  if (!animState) {
+    slider.max = 0;
+    slider.value = 0;
+    label.textContent = '0 / 0';
+  } else {
+    slider.max = animState.steps.length;
+    slider.value = animState.position;
+    label.textContent = `${animState.position} / ${animState.steps.length}`;
+  }
+}
+
+function updatePlayIcon() {
+  const playing = playInterval !== null;
+  document.getElementById('icon-play').style.display = playing ? 'none' : 'block';
+  document.getElementById('icon-pause').style.display = playing ? 'block' : 'none';
+}
+
+function stopPlay() {
+  if (playInterval !== null) {
+    clearInterval(playInterval);
+    playInterval = null;
+    updatePlayIcon();
+  }
+}
+
+function startPlay() {
+  stopPlay();
+  if (!animState) return;
+  if (animState.position >= animState.steps.length) {
+    animState.position = 0;
+    updateScrubber();
+    draw();
+  }
+  playInterval = setInterval(() => {
+    if (!animState) { stopPlay(); return; }
+    if (animState.position >= animState.steps.length) { stopPlay(); return; }
+    animState.position++;
+    updateScrubber();
+    draw();
+  }, 500);
+  updatePlayIcon();
+}
+
+// --- Event handlers ---
 document.getElementById('run-btn').addEventListener('click', runAlgorithm);
+
+document.getElementById('play-btn').addEventListener('click', () => {
+  if (playInterval !== null) stopPlay();
+  else startPlay();
+});
+
+document.getElementById('speed-slider').addEventListener('input', (e) => {
+  if (!animState) return;
+  stopPlay();
+  animState.position = parseInt(e.target.value);
+  updateScrubber();
+  draw();
+});
+
+document.getElementById('anim-level').addEventListener('change', () => {
+  if (!edgeData) return;
+  stopPlay();
+  animState = { steps: computeSteps(document.getElementById('anim-level').value), position: 0 };
+  updateScrubber();
+  draw();
+});

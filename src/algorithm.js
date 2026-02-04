@@ -1,11 +1,17 @@
 const vcomps = [];
 const vert_edges = [];
 const horz_edges = [];
+let eventCount = 0;
+const componentSteps = [];
+const wavefrontSteps = [];
 
 function reset() {
   vcomps.length = 0;
   vert_edges.length = 0;
   horz_edges.length = 0;
+  eventCount = 0;
+  componentSteps.length = 0;
+  wavefrontSteps.length = 0;
 }
 
 function addVerticalComponent(col, rowStart, rowEnd) {
@@ -229,6 +235,7 @@ function orientVerticalEdges(H) {
 
   for (let i = edgeStart; i < edgeEnd; i++) {
     vert_edges[i].orientation = vert_edges[i].row >= s ? 1 : -1;
+    vert_edges[i].eventIndex = eventCount++;
   }
 }
 
@@ -243,6 +250,7 @@ function orientHorizontalEdges(H, d) {
   const [edgeStart, edgeEnd] = edgeRange;
   for (let i = edgeStart; i < edgeEnd; i++) {
     horz_edges[i].orientation = d;
+    horz_edges[i].eventIndex = eventCount++;
   }
 }
 
@@ -276,6 +284,7 @@ function orientInwardEdgesIfNeeded(H, K, d) {
 
   for (const i of toOrient) {
     horz_edges[i].orientation = d;
+    horz_edges[i].eventIndex = eventCount++;
   }
 }
 
@@ -334,6 +343,7 @@ function wavefront(d, T_minus, T_plus) {
 
     // Mark H as visited
     vcomps[H].isVisited = true;
+    componentSteps.push(eventCount);
   }
 }
 
@@ -367,8 +377,9 @@ export function runAlgorithm(matrix) {
   // while Td is not empty do
   while ((d === 1 ? T_plus : T_minus).size > 0) {
     wavefront(d, T_minus, T_plus);
+    wavefrontSteps.push(eventCount);
     d = -d;
   }
 
-  return { vert_edges, horz_edges, vcomps };
+  return { vert_edges, horz_edges, vcomps, totalEvents: eventCount, componentSteps: [...componentSteps], wavefrontSteps: [...wavefrontSteps] };
 }
