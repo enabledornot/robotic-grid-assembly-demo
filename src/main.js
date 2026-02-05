@@ -72,7 +72,7 @@ let playInterval = null;
   }
 
 // --- Draw cubes ---
-function drawCubes(cellColors) {
+function drawCubes(cellColors, blackDots) {
   const g = new PIXI.Graphics();
   cubes.forEach((cube) => {
     const px = cube.x * gridSize;
@@ -86,7 +86,7 @@ function drawCubes(cellColors) {
     g.fill(color);
     if (edgeData) {
       g.circle(px + gridSize / 2, py + gridSize / 2, dotRadius);
-      g.fill(0x000000);
+      g.fill(blackDots.has(`${cube.x - edgeData.minX},${cube.y - edgeData.minY}`) ? 0x000000 : 0x808080);
     }
   });
   return g;
@@ -132,7 +132,7 @@ function drawEdges(edges) {
   if (!edgeData) return g;
 
   const { minX, minY } = edgeData;
-  const color = 0x000000;
+  const color = 0x808080;
 
   for (const edge of edges) {
     if (edge.edgeType === 'vertical') {
@@ -175,6 +175,7 @@ function draw() {
   // Replay event log up to current animation position
   const cellColors = {};
   const edges = [];
+  const blackDots = new Set();
   if (edgeData && animState) {
     const maxEvent = animState.position === 0 ? 0 : animState.steps[animState.position - 1];
     const events = edgeData.eventLog.events;
@@ -182,11 +183,12 @@ function draw() {
       const ev = events[i];
       if (ev.type === 'updateCell') cellColors[`${ev.col},${ev.row}`] = ev.color;
       else if (ev.type === 'addEdge') edges.push(ev);
+      else if (ev.type === 'colorDot') blackDots.add(`${ev.col},${ev.row}`);
     }
   }
 
   const grid = drawGrid();
-  const cubeGraphics = drawCubes(cellColors);
+  const cubeGraphics = drawCubes(cellColors, blackDots);
   const edgeGraphics = drawEdges(edges);
 
   world.addChild(grid);
@@ -418,13 +420,14 @@ function runAlgorithm() {
     return;
   }
 
-  const { eventLog } = executeAlgorithm(matrix);
+  const { eventLog, vcompCount } = executeAlgorithm(matrix);
   edgeData = { eventLog, minX, minY };
   const vertCount = eventLog.events.filter(e => e.type === 'addEdge' && e.edgeType === 'vertical').length;
   const horzCount = eventLog.events.filter(e => e.type === 'addEdge' && e.edgeType === 'horizontal').length;
   appendOutput(`Vertical edges: ${vertCount}`);
   appendOutput(`Horizontal edges: ${horzCount}`);
-  appendOutput(`Steps: wavefront=${eventLog.stepsForLevel('wavefront').length} component=${eventLog.stepsForLevel('component').length} edge=${eventLog.stepsForLevel('edge').length} full=${eventLog.stepsForLevel('full').length}`);
+  appendOutput(`Waves: ${eventLog.stepsForLevel('wavefront').length}`);
+  appendOutput(`Vertical components: ${vcompCount}`);
   const level = document.getElementById('anim-level').value;
   animState = { steps: computeSteps(level), position: 0 };
   updateScrubber();

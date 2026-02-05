@@ -35,6 +35,7 @@ export class EventLog {
         this.events = [];
         this.componentBoundaries = [];
         this.wavefrontBoundaries = [];
+        this.edgeBoundaries = [];
     }
 
     addEdge(edgeType, col, row, orientation) {
@@ -45,12 +46,20 @@ export class EventLog {
         this.events.push({ type: 'updateCell', col, row, color });
     }
 
+    colorDot(col, row) {
+        this.events.push({ type: 'colorDot', col, row });
+    }
+
     markComponent() {
         this.componentBoundaries.push(this.events.length);
     }
 
     markWavefront() {
         this.wavefrontBoundaries.push(this.events.length);
+    }
+
+    markEdge() {
+        this.edgeBoundaries.push(this.events.length);
     }
 
     stepsForLevel(level) {
@@ -60,10 +69,7 @@ export class EventLog {
             case 'full':
                 return Array.from({ length: len }, (_, i) => i + 1);
             case 'edge': {
-                const steps = [];
-                for (let i = 0; i < len; i++) {
-                    if (this.events[i].type === 'addEdge') steps.push(i + 1);
-                }
+                const steps = this.edgeBoundaries.filter((v, i) => v > 0 && (i === 0 || v !== this.edgeBoundaries[i - 1]));
                 if (steps.length === 0 || steps[steps.length - 1] !== len) steps.push(len);
                 return steps;
             }

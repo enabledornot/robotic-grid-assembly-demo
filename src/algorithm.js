@@ -338,15 +338,19 @@ function wavefront(d, T_minus, T_plus) {
     for (let row = rowStart; row <= rowEnd; row++) {
       eventLog.updateCell(vcomps[H].col, row, COLOR_PROCESSING);
     }
+    eventLog.colorDot(vcomps[H].col, vcomps[H].row_seed);
     eventLog.markComponent();
 
     // Orient all vertical edges in H away from s(H)
     orientVerticalEdges(H);
+    eventLog.markEdge();
     // forward side: expand this wave in direction d
     orientHorizontalEdges(H, d);
+    eventLog.markEdge();
     expandForwardNeighbors(H, d, W);
     // Inward side: build the frontier for the next wave in direction -d
     processInwardNeighbors(H, d, T_minus, T_plus);
+    eventLog.markEdge();
 
     // Mark H as visited
     vcomps[H].isVisited = true;
@@ -392,5 +396,5 @@ export function runAlgorithm(matrix) {
     d = -d;
   }
 
-  return { eventLog };
+  return { eventLog, vcompCount: vcomps.length };
 }
