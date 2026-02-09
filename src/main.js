@@ -436,7 +436,9 @@ app.canvas.addEventListener('wheel', e => {
 
 // Optional: prevent dragging from continuing outside canvas
 window.addEventListener('mouseleave', () => { dragging = false; shiftDragging = false; });
-window.addEventListener('resize', draw);
+window.addEventListener('resize', () => {
+  requestAnimationFrame(draw);
+});
 
 // --- Output Helper ---
 function clearOutput() {
