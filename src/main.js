@@ -290,6 +290,48 @@ function click(cordX, cordY) {
   }
 }
 
+function runAlgorithmWithStartVertex(gridX, gridY) {
+  clearOutput();
+  appendOutput('Starting algorithm from selected vertex...');
+  const { matrix, count, minX, minY } = cubeToMatrix();
+
+  if (count === 0) {
+    appendOutput('No cubes placed on grid.');
+    return;
+  }
+
+  // Check if selected vertex is within bounds
+  const matrixX = gridX - minX;
+  const matrixY = gridY - minY;
+  if (matrixX < 0 || matrixX >= matrix[0].length || matrixY < 0 || matrixY >= matrix.length || !matrix[matrixY][matrixX]) {
+    appendOutput('Error: Selected vertex must be on a cube.');
+    return;
+  }
+
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+  appendOutput(`Matrix: ${rows}x${cols} (${count} cubes)`);
+
+  if (!isConnected(matrix, count)) {
+    appendOutput('Error: Figure is not connected. All cubes must be adjacent (up/down/left/right).');
+    return;
+  }
+
+  const { eventLog, vcompCount } = executeAlgorithm(matrix, { startX: matrixX, startY: matrixY });
+  edgeData = { eventLog, minX, minY };
+  const vertCount = eventLog.events.filter(e => e.type === 'addEdge' && e.edgeType === 'vertical').length;
+  const horzCount = eventLog.events.filter(e => e.type === 'addEdge' && e.edgeType === 'horizontal').length;
+  appendOutput(`Vertical edges: ${vertCount}`);
+  appendOutput(`Horizontal edges: ${horzCount}`);
+  appendOutput(`Waves: ${eventLog.stepsForLevel('wavefront').length}`);
+  appendOutput(`Vertical components: ${vcompCount}`);
+  const level = document.getElementById('anim-level').value;
+  animState = { steps: computeSteps(level), position: 0 };
+  updateScrubber();
+  draw();
+  startPlay();
+}
+
 function paintCell(gridX, gridY) {
   if (paintMode === 'add' && !checkCube(gridX, gridY)) {
     addCube(gridX, gridY, 0x808080);
@@ -306,8 +348,17 @@ let clickThreshold = 5; // pixels
 let shiftDragging = false;
 let paintMode = null; // 'add' or 'remove'
 let eraserActive = false;
+let selectingStartVertex = false;
 
 app.canvas.addEventListener('mousedown', e => {
+  if (selectingStartVertex) {
+    const gridX = Math.floor((e.offsetX / camera.zoom + camera.x) / gridSize);
+    const gridY = Math.floor((e.offsetY / camera.zoom + camera.y) / gridSize);
+    selectingStartVertex = false;
+    document.getElementById('select-start-btn').style.backgroundColor = '';
+    runAlgorithmWithStartVertex(gridX, gridY);
+    return;
+  }
   if (e.shiftKey) {
     shiftDragging = true;
     const gridX = Math.floor((e.offsetX / camera.zoom + camera.x) / gridSize);
@@ -489,6 +540,14 @@ function startPlay() {
 
 // --- Event handlers ---
 document.getElementById('run-btn').addEventListener('click', runAlgorithm);
+
+document.getElementById('select-start-btn').addEventListener('click', () => {
+  selectingStartVertex = !selectingStartVertex;
+  document.getElementById('select-start-btn').style.backgroundColor = selectingStartVertex ? '#c0392b' : '';
+  if (selectingStartVertex) {
+    appendOutput('Click on a cube to select as start vertex...');
+  }
+});
 
 document.getElementById('eraser-btn').addEventListener('click', () => {
   eraserActive = !eraserActive;

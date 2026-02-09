@@ -365,9 +365,10 @@ function wavefront(d, T_minus, T_plus) {
 /**
  * Runs the wavefront sweep algorithm on the provided matrix grid.
  * @param {boolean[][]} matrix - 2D matrix where true represents a cube and false represents empty space
+ * @param {Object} options - Optional parameters: { startX, startY } to specify start vertex
  * @returns {Object} Result object containing algorithm output
  */
-export function runAlgorithm(matrix) {
+export function runAlgorithm(matrix, options = {}) {
   reset();
   // Compute column components Hxi and their horizontal adjacencies
   // For all components H, mark H as unvisited and set s(H)
@@ -379,11 +380,22 @@ export function runAlgorithm(matrix) {
   // Initialize global frontier worklists T-1 and T+1 as empty sets
   const T_minus = new Set();
   const T_plus = new Set();
-  // Set H_root to the bottom-leftmost component
-  let H_root = 0;
 
-  // Set s(Hroot) to the lowest vertex in Hroot
-  vcomps[H_root].row_seed = vcomps[H_root].row_range[0];
+  // Set H_root to the bottom-leftmost component, or find component containing start vertex
+  let H_root = 0;
+  if (options.startX !== undefined && options.startY !== undefined) {
+    // Find the vcomp containing the start vertex
+    for (let i = 0; i < vcomps.length; i++) {
+      const [rowStart, rowEnd] = vcomps[i].row_range;
+      if (vcomps[i].col === options.startX && options.startY >= rowStart && options.startY <= rowEnd) {
+        H_root = i;
+        break;
+      }
+    }
+  }
+
+  // Set s(Hroot) to the specified start vertex or the lowest vertex in Hroot
+  vcomps[H_root].row_seed = options.startY !== undefined ? options.startY : vcomps[H_root].row_range[0];
 
   // Set d = +1 and T_d <- {H_root}
   let d = 1;
