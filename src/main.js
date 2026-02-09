@@ -544,10 +544,33 @@ function startPlay() {
 document.getElementById('run-btn').addEventListener('click', runAlgorithm);
 
 document.getElementById('select-start-btn').addEventListener('click', () => {
+  if (!selectingStartVertex) {
+    // Entering selection mode - validate figure is complete
+    const { matrix, count } = cubeToMatrix();
+
+    clearOutput();
+
+    if (count === 0) {
+      appendOutput('Error: No cubes placed on grid.');
+      return;
+    }
+
+    if (!isConnected(matrix, count)) {
+      appendOutput('Error: Figure is not connected. All cubes must be adjacent (up/down/left/right).');
+      return;
+    }
+  }
+
   selectingStartVertex = !selectingStartVertex;
   document.getElementById('select-start-btn').style.backgroundColor = selectingStartVertex ? '#c0392b' : '';
   if (selectingStartVertex) {
     appendOutput('Click on a cube to select as start vertex...');
+    stopPlay();
+    animState = null;
+    edgeData = null;
+    updateScrubber();
+    updatePlayIcon();
+    draw();
   }
 });
 
