@@ -88,6 +88,12 @@ function drawCubes(cellColors, blackDots) {
       g.circle(px + gridSize / 2, py + gridSize / 2, dotRadius);
       g.fill(blackDots.has(`${cube.x - edgeData.minX},${cube.y - edgeData.minY}`) ? 0x000000 : 0x808080);
     }
+
+    // Highlight the selected start vertex with a colored border
+    if (selectedStartVertex && cube.x === selectedStartVertex.gridX && cube.y === selectedStartVertex.gridY) {
+      g.rect(px + 2, py + 2, gridSize - 4, gridSize - 4);
+      g.stroke({ color: 0x00ff00, width: 4 });
+    }
   });
   return g;
 }
@@ -285,6 +291,14 @@ function click(cordX, cordY) {
   updatePlayIcon();
   if (checkCube(cordX, cordY)) {
     removeCube(cordX, cordY);
+    // If the removed cube was the selected start vertex, clear it
+    if (selectedStartVertex && selectedStartVertex.gridX === cordX && selectedStartVertex.gridY === cordY) {
+      selectedStartVertex = null;
+      selectingStartVertex = false;
+      document.getElementById('remove-start-btn').disabled = true;
+      document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+      document.getElementById('select-start-btn').style.backgroundColor = '';
+    }
   } else if (!eraserActive) {
     addCube(cordX, cordY, 0x808080);
   }
@@ -327,6 +341,14 @@ function runAlgorithmWithStartVertex(gridX, gridY) {
   appendOutput(`Vertical components: ${vcompCount}`);
   const level = document.getElementById('anim-level').value;
   animState = { steps: computeSteps(level), position: 0 };
+
+  // Clear the selected start vertex after running the algorithm
+  selectedStartVertex = null;
+  selectingStartVertex = false;
+  document.getElementById('remove-start-btn').disabled = true;
+  document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+  document.getElementById('select-start-btn').style.backgroundColor = '';
+
   updateScrubber();
   draw();
   startPlay();
@@ -337,6 +359,14 @@ function paintCell(gridX, gridY) {
     addCube(gridX, gridY, 0x808080);
   } else if (paintMode === 'remove' && checkCube(gridX, gridY)) {
     removeCube(gridX, gridY);
+    // If the removed cube was the selected start vertex, clear it
+    if (selectedStartVertex && selectedStartVertex.gridX === gridX && selectedStartVertex.gridY === gridY) {
+      selectedStartVertex = null;
+      selectingStartVertex = false;
+      document.getElementById('remove-start-btn').disabled = true;
+      document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+      document.getElementById('select-start-btn').style.backgroundColor = '';
+    }
   }
 }
 
@@ -349,14 +379,27 @@ let shiftDragging = false;
 let paintMode = null; // 'add' or 'remove'
 let eraserActive = false;
 let selectingStartVertex = false;
+let selectedStartVertex = null; // { gridX, gridY } or null
 
 app.canvas.addEventListener('mousedown', e => {
   if (selectingStartVertex) {
     const gridX = Math.floor((e.offsetX / camera.zoom + camera.x) / gridSize);
     const gridY = Math.floor((e.offsetY / camera.zoom + camera.y) / gridSize);
+
+    // Validate that the selected vertex is on a cube
+    if (!checkCube(gridX, gridY)) {
+      appendOutput('Error: Selected vertex must be on a cube.');
+      return;
+    }
+
+    // Store the selected vertex
+    selectedStartVertex = { gridX, gridY };
     selectingStartVertex = false;
+    document.getElementById('remove-start-btn').disabled = false;
+    document.getElementById('select-start-btn').textContent = 'Move Start Vertex';
     document.getElementById('select-start-btn').style.backgroundColor = '';
-    runAlgorithmWithStartVertex(gridX, gridY);
+    appendOutput(`Start vertex selected at (${gridX}, ${gridY})`);
+    draw(); // Redraw to show visual feedback
     return;
   }
   if (e.shiftKey) {
@@ -455,6 +498,13 @@ function appendOutput(text) {
 
 // --- Run Algorithm ---
 function runAlgorithm() {
+  // If a start vertex is selected, use it
+  if (selectedStartVertex) {
+    runAlgorithmWithStartVertex(selectedStartVertex.gridX, selectedStartVertex.gridY);
+    return;
+  }
+
+  // Otherwise, run with default start vertex
   clearOutput();
   appendOutput('Starting algorithm...');
   const { matrix, count, minX, minY } = cubeToMatrix();
@@ -483,6 +533,14 @@ function runAlgorithm() {
   appendOutput(`Vertical components: ${vcompCount}`);
   const level = document.getElementById('anim-level').value;
   animState = { steps: computeSteps(level), position: 0 };
+
+  // Clear the selected start vertex after running the algorithm
+  selectedStartVertex = null;
+  selectingStartVertex = false;
+  document.getElementById('remove-start-btn').disabled = true;
+  document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+  document.getElementById('select-start-btn').style.backgroundColor = '';
+
   updateScrubber();
   draw();
   startPlay();
@@ -544,34 +602,50 @@ function startPlay() {
 document.getElementById('run-btn').addEventListener('click', runAlgorithm);
 
 document.getElementById('select-start-btn').addEventListener('click', () => {
-  if (!selectingStartVertex) {
-    // Entering selection mode - validate figure is complete
-    const { matrix, count } = cubeToMatrix();
-
-    clearOutput();
-
-    if (count === 0) {
-      appendOutput('Error: No cubes placed on grid.');
-      return;
-    }
-
-    if (!isConnected(matrix, count)) {
-      appendOutput('Error: Figure is not connected. All cubes must be adjacent (up/down/left/right).');
-      return;
-    }
-  }
-
-  selectingStartVertex = !selectingStartVertex;
-  document.getElementById('select-start-btn').style.backgroundColor = selectingStartVertex ? '#c0392b' : '';
+  // If already in selection mode, cancel it
   if (selectingStartVertex) {
-    appendOutput('Click on a cube to select as start vertex...');
-    stopPlay();
-    animState = null;
-    edgeData = null;
-    updateScrubber();
-    updatePlayIcon();
-    draw();
+    selectingStartVertex = false;
+    document.getElementById('select-start-btn').style.backgroundColor = '';
+    clearOutput();
+    appendOutput('Selection cancelled.');
+    return;
   }
+
+  // Entering selection mode - validate figure is complete
+  const { matrix, count } = cubeToMatrix();
+
+  clearOutput();
+
+  if (count === 0) {
+    appendOutput('Error: No cubes placed on grid.');
+    return;
+  }
+
+  if (!isConnected(matrix, count)) {
+    appendOutput('Error: Figure is not connected. All cubes must be adjacent (up/down/left/right).');
+    return;
+  }
+
+  selectingStartVertex = true;
+  document.getElementById('select-start-btn').style.backgroundColor = '#c0392b';
+  appendOutput('Click on a cube to select as start vertex...');
+  stopPlay();
+  animState = null;
+  edgeData = null;
+  updateScrubber();
+  updatePlayIcon();
+  draw();
+});
+
+document.getElementById('remove-start-btn').addEventListener('click', () => {
+  selectedStartVertex = null;
+  selectingStartVertex = false;
+  document.getElementById('remove-start-btn').disabled = true;
+  document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+  document.getElementById('select-start-btn').style.backgroundColor = '';
+  clearOutput();
+  appendOutput('Start vertex removed.');
+  draw();
 });
 
 document.getElementById('eraser-btn').addEventListener('click', () => {
@@ -584,12 +658,24 @@ document.addEventListener('keydown', e => {
     eraserActive = !eraserActive;
     document.getElementById('eraser-btn').classList.toggle('active', eraserActive);
   }
+
+  if (e.key === 'Escape' && selectingStartVertex) {
+    selectingStartVertex = false;
+    document.getElementById('select-start-btn').style.backgroundColor = '';
+    clearOutput();
+    appendOutput('Selection cancelled.');
+  }
 });
 
 document.getElementById('clear-btn').addEventListener('click', () => {
   stopPlay();
   animState = null;
   edgeData = null;
+  selectedStartVertex = null;
+  selectingStartVertex = false;
+  document.getElementById('remove-start-btn').disabled = true;
+  document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+  document.getElementById('select-start-btn').style.backgroundColor = '';
   updateScrubber();
   updatePlayIcon();
   cubes.map.clear();
@@ -647,6 +733,11 @@ document.getElementById('load-input').addEventListener('change', (e) => {
       stopPlay();
       animState = null;
       edgeData = null;
+      selectedStartVertex = null;
+      selectingStartVertex = false;
+      document.getElementById('remove-start-btn').disabled = true;
+      document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+      document.getElementById('select-start-btn').style.backgroundColor = '';
       updateScrubber();
       updatePlayIcon();
       draw();
@@ -694,6 +785,11 @@ presetSelect.addEventListener('change', () => {
   stopPlay();
   animState = null;
   edgeData = null;
+  selectedStartVertex = null;
+  selectingStartVertex = false;
+  document.getElementById('remove-start-btn').disabled = true;
+  document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+  document.getElementById('select-start-btn').style.backgroundColor = '';
   updateScrubber();
   updatePlayIcon();
   centerOnCubes();
