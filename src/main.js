@@ -39,6 +39,7 @@ const cubes = new gridMap();
 let edgeData = null;
 let animState = null;
 let playInterval = null;
+let playbackSpeed = 500; // milliseconds per frame
 
   // --- Draw grid function ---
   function drawGrid() {
@@ -594,7 +595,7 @@ function startPlay() {
     animState.position++;
     updateScrubber();
     draw();
-  }, 500);
+  }, playbackSpeed);
   updatePlayIcon();
 }
 
@@ -854,6 +855,26 @@ document.getElementById('play-btn').addEventListener('click', () => {
   else startPlay();
 });
 
+document.getElementById('frame-reverse-btn').addEventListener('click', () => {
+  if (!animState) return;
+  stopPlay();
+  if (animState.position > 0) {
+    animState.position--;
+    updateScrubber();
+    draw();
+  }
+});
+
+document.getElementById('frame-advance-btn').addEventListener('click', () => {
+  if (!animState) return;
+  stopPlay();
+  if (animState.position < animState.steps.length) {
+    animState.position++;
+    updateScrubber();
+    draw();
+  }
+});
+
 document.getElementById('speed-slider').addEventListener('input', (e) => {
   if (!animState) return;
   stopPlay();
@@ -868,4 +889,16 @@ document.getElementById('anim-level').addEventListener('change', () => {
   animState = { steps: computeSteps(document.getElementById('anim-level').value), position: 0 };
   updateScrubber();
   draw();
+});
+
+document.getElementById('playback-speed').addEventListener('change', (e) => {
+  playbackSpeed = parseInt(e.target.value);
+  // If currently playing, restart with new speed
+  if (playInterval !== null) {
+    const wasPlaying = true;
+    stopPlay();
+    if (wasPlaying && animState) {
+      startPlay();
+    }
+  }
 });
