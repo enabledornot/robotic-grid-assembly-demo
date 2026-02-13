@@ -683,7 +683,11 @@ document.getElementById('clear-btn').addEventListener('click', () => {
 });
 
 document.getElementById('save-btn').addEventListener('click', async () => {
-  const json = JSON.stringify(cubes.toJSON(), null, 2);
+  const saveData = {
+    cubes: cubes.toJSON(),
+    selectedStartVertex: selectedStartVertex
+  };
+  const json = JSON.stringify(saveData, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
 
   if (window.showSaveFilePicker) {
@@ -729,15 +733,39 @@ document.getElementById('load-input').addEventListener('change', (e) => {
   const reader = new FileReader();
   reader.onload = (event) => {
     try {
-      cubes.fromJSON(JSON.parse(event.target.result));
+      const data = JSON.parse(event.target.result);
+
+      // Support both old format (array) and new format (object with cubes and selectedStartVertex)
+      if (Array.isArray(data)) {
+        // Old format: just an array of cubes
+        cubes.fromJSON(data);
+        selectedStartVertex = null;
+      } else {
+        // New format: object with cubes and selectedStartVertex
+        cubes.fromJSON(data.cubes);
+        selectedStartVertex = data.selectedStartVertex || null;
+
+        // Validate that the loaded start vertex is actually on a cube
+        if (selectedStartVertex && !checkCube(selectedStartVertex.gridX, selectedStartVertex.gridY)) {
+          selectedStartVertex = null;
+        }
+      }
+
       stopPlay();
       animState = null;
       edgeData = null;
-      selectedStartVertex = null;
       selectingStartVertex = false;
-      document.getElementById('remove-start-btn').disabled = true;
-      document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+
+      // Update UI based on whether a start vertex was loaded
+      if (selectedStartVertex) {
+        document.getElementById('remove-start-btn').disabled = false;
+        document.getElementById('select-start-btn').textContent = 'Move Start Vertex';
+      } else {
+        document.getElementById('remove-start-btn').disabled = true;
+        document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+      }
       document.getElementById('select-start-btn').style.backgroundColor = '';
+
       updateScrubber();
       updatePlayIcon();
       draw();
@@ -781,15 +809,38 @@ Object.keys(presets).sort().forEach(path => {
 presetSelect.addEventListener('change', () => {
   const data = presets[presetSelect.value]?.default;
   if (!data) return;
-  cubes.fromJSON(data);
+
+  // Support both old format (array) and new format (object with cubes and selectedStartVertex)
+  if (Array.isArray(data)) {
+    // Old format: just an array of cubes
+    cubes.fromJSON(data);
+    selectedStartVertex = null;
+  } else {
+    // New format: object with cubes and selectedStartVertex
+    cubes.fromJSON(data.cubes);
+    selectedStartVertex = data.selectedStartVertex || null;
+
+    // Validate that the loaded start vertex is actually on a cube
+    if (selectedStartVertex && !checkCube(selectedStartVertex.gridX, selectedStartVertex.gridY)) {
+      selectedStartVertex = null;
+    }
+  }
+
   stopPlay();
   animState = null;
   edgeData = null;
-  selectedStartVertex = null;
   selectingStartVertex = false;
-  document.getElementById('remove-start-btn').disabled = true;
-  document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+
+  // Update UI based on whether a start vertex was loaded
+  if (selectedStartVertex) {
+    document.getElementById('remove-start-btn').disabled = false;
+    document.getElementById('select-start-btn').textContent = 'Move Start Vertex';
+  } else {
+    document.getElementById('remove-start-btn').disabled = true;
+    document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
+  }
   document.getElementById('select-start-btn').style.backgroundColor = '';
+
   updateScrubber();
   updatePlayIcon();
   centerOnCubes();
