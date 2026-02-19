@@ -90,8 +90,8 @@ function drawCubes(cellColors, blackDots) {
       g.fill(blackDots.has(`${cube.x - edgeData.minX},${cube.y - edgeData.minY}`) ? 0x000000 : 0x808080);
     }
 
-    // Highlight the selected start vertex with a colored border
-    if (selectedStartVertex && cube.x === selectedStartVertex.gridX && cube.y === selectedStartVertex.gridY) {
+    // Highlight the selected start vertex with a colored border (unless wavefront is running)
+    if (selectedStartVertex && !edgeData && cube.x === selectedStartVertex.gridX && cube.y === selectedStartVertex.gridY) {
       g.rect(px + 2, py + 2, gridSize - 4, gridSize - 4);
       g.stroke({ color: 0x00ff00, width: 4 });
     }
@@ -305,7 +305,7 @@ function click(cordX, cordY) {
   }
 }
 
-function runAlgorithmWithStartVertex(gridX, gridY) {
+function runAlgorithmWithStartVertex(gridX, gridY, autoPlay = true) {
   clearOutput();
   appendOutput('Starting algorithm from selected vertex...');
   const { matrix, count, minX, minY } = cubeToMatrix();
@@ -343,16 +343,11 @@ function runAlgorithmWithStartVertex(gridX, gridY) {
   const level = document.getElementById('anim-level').value;
   animState = { steps: computeSteps(level), position: 0 };
 
-  // Clear the selected start vertex after running the algorithm
-  selectedStartVertex = null;
-  selectingStartVertex = false;
-  document.getElementById('remove-start-btn').disabled = true;
-  document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
-  document.getElementById('select-start-btn').style.backgroundColor = '';
-
   updateScrubber();
   draw();
-  startPlay();
+  if (autoPlay) {
+    startPlay();
+  }
 }
 
 function paintCell(gridX, gridY) {
@@ -393,12 +388,18 @@ app.canvas.addEventListener('mousedown', e => {
       return;
     }
 
-    // Store the selected vertex
+    // If wavefront is visible, clear it
+    if (edgeData) {
+      stopPlay();
+      edgeData = null;
+      animState = null;
+      updateScrubber();
+      updatePlayIcon();
+    }
+
+    // Store the selected vertex (keep selection mode active - don't set selectingStartVertex to false)
     selectedStartVertex = { gridX, gridY };
-    selectingStartVertex = false;
     document.getElementById('remove-start-btn').disabled = false;
-    document.getElementById('select-start-btn').textContent = 'Move Start Vertex';
-    document.getElementById('select-start-btn').style.backgroundColor = '';
     appendOutput(`Start vertex selected at (${gridX}, ${gridY})`);
     draw(); // Redraw to show visual feedback
     return;
@@ -498,10 +499,10 @@ function appendOutput(text) {
 }
 
 // --- Run Algorithm ---
-function runAlgorithm() {
+function runAlgorithm(autoPlay = true) {
   // If a start vertex is selected, use it
   if (selectedStartVertex) {
-    runAlgorithmWithStartVertex(selectedStartVertex.gridX, selectedStartVertex.gridY);
+    runAlgorithmWithStartVertex(selectedStartVertex.gridX, selectedStartVertex.gridY, autoPlay);
     return;
   }
 
@@ -535,16 +536,11 @@ function runAlgorithm() {
   const level = document.getElementById('anim-level').value;
   animState = { steps: computeSteps(level), position: 0 };
 
-  // Clear the selected start vertex after running the algorithm
-  selectedStartVertex = null;
-  selectingStartVertex = false;
-  document.getElementById('remove-start-btn').disabled = true;
-  document.getElementById('select-start-btn').textContent = 'Select Start Vertex';
-  document.getElementById('select-start-btn').style.backgroundColor = '';
-
   updateScrubber();
   draw();
-  startPlay();
+  if (autoPlay) {
+    startPlay();
+  }
 }
 
 // --- Animation helpers ---
@@ -855,6 +851,15 @@ document.getElementById('play-btn').addEventListener('click', () => {
   else startPlay();
 });
 
+document.getElementById('stop-btn').addEventListener('click', () => {
+  stopPlay();
+  edgeData = null;
+  animState = null;
+  updateScrubber();
+  updatePlayIcon();
+  draw();
+});
+
 document.getElementById('frame-reverse-btn').addEventListener('click', () => {
   if (!animState) return;
   stopPlay();
@@ -866,9 +871,11 @@ document.getElementById('frame-reverse-btn').addEventListener('click', () => {
 });
 
 document.getElementById('frame-advance-btn').addEventListener('click', () => {
-  if (!animState) return;
   stopPlay();
-  if (animState.position < animState.steps.length) {
+  if (!edgeData) {
+    runAlgorithm(false);
+  }
+  if (animState && animState.position < animState.steps.length) {
     animState.position++;
     updateScrubber();
     draw();
