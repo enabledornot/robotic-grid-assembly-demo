@@ -319,6 +319,66 @@ function isConnected(matrix, count) {
   return visited.size === count;
 }
 
+function computeTreeStats(eventLog) {
+  const adj = new Map();
+  const inDegree = new Map();
+
+  for (const ev of eventLog.events) {
+    if (ev.type !== 'addEdge') continue;
+    let fromCol, fromRow, toCol, toRow;
+    if (ev.edgeType === 'vertical') {
+      if (ev.orientation === 1) { fromCol = ev.col; fromRow = ev.row;     toCol = ev.col; toRow = ev.row + 1; }
+      else                       { fromCol = ev.col; fromRow = ev.row + 1; toCol = ev.col; toRow = ev.row;     }
+    } else {
+      if (ev.orientation === 1) { fromCol = ev.col;     fromRow = ev.row; toCol = ev.col + 1; toRow = ev.row; }
+      else                       { fromCol = ev.col + 1; fromRow = ev.row; toCol = ev.col;     toRow = ev.row; }
+    }
+    const from = `${fromCol},${fromRow}`;
+    const to   = `${toCol},${toRow}`;
+    if (!adj.has(from)) adj.set(from, []);
+    adj.get(from).push(to);
+    if (!inDegree.has(from)) inDegree.set(from, 0);
+    inDegree.set(to, (inDegree.get(to) || 0) + 1);
+  }
+
+  // Root = unique node with in-degree 0
+  let root = null;
+  for (const [node, deg] of inDegree) {
+    if (deg === 0) { root = node; break; }
+  }
+  // Single-node case: no edges
+  if (!root) {
+    const only = eventLog.events.find(e => e.type === 'updateCell');
+    if (only) root = `${only.col},${only.row}`;
+    else return null;
+  }
+
+  // BFS: track depth, level width, leaf count
+  const depth = new Map([[root, 0]]);
+  const queue = [root];
+  const levelCounts = new Map([[0, 1]]);
+  let height = 0;
+  let leaves = 0;
+
+  while (queue.length > 0) {
+    const node = queue.shift();
+    const d = depth.get(node);
+    const children = adj.get(node) || [];
+    if (children.length === 0) leaves++;
+    for (const child of children) {
+      if (!depth.has(child)) {
+        depth.set(child, d + 1);
+        if (d + 1 > height) height = d + 1;
+        levelCounts.set(d + 1, (levelCounts.get(d + 1) || 0) + 1);
+        queue.push(child);
+      }
+    }
+  }
+
+  const width = Math.max(...levelCounts.values());
+  return { height, width, leaves };
+}
+
 function click(cordX, cordY) {
   stopPlay();
   animState = null;
@@ -376,6 +436,12 @@ function runAlgorithmWithStartVertex(gridX, gridY, autoPlay = true) {
   appendOutput(`Horizontal edges: ${horzCount}`);
   appendOutput(`Waves: ${eventLog.stepsForLevel('wavefront').length}`);
   appendOutput(`Vertical components: ${vcompCount}`);
+  const treeStats = computeTreeStats(eventLog);
+  if (treeStats) {
+    appendOutput(`Tree height: ${treeStats.height}`);
+    appendOutput(`Tree width: ${treeStats.width}`);
+    appendOutput(`Leaves: ${treeStats.leaves}`);
+  }
   const level = document.getElementById('anim-level').value;
   animState = { steps: computeSteps(level), position: 0 };
 
@@ -570,6 +636,12 @@ function runAlgorithm(autoPlay = true) {
   appendOutput(`Horizontal edges: ${horzCount}`);
   appendOutput(`Waves: ${eventLog.stepsForLevel('wavefront').length}`);
   appendOutput(`Vertical components: ${vcompCount}`);
+  const treeStats = computeTreeStats(eventLog);
+  if (treeStats) {
+    appendOutput(`Tree height: ${treeStats.height}`);
+    appendOutput(`Tree width: ${treeStats.width}`);
+    appendOutput(`Leaves: ${treeStats.leaves}`);
+  }
   const level = document.getElementById('anim-level').value;
   animState = { steps: computeSteps(level), position: 0 };
 
