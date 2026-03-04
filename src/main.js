@@ -80,14 +80,20 @@ function drawCubes(cellColors, blackDots) {
     const py = cube.y * gridSize;
     let color = cube.color;
     if (edgeData) {
-      const key = `${cube.x - edgeData.minX},${cube.y - edgeData.minY}`;
+      // When flipped: algorithm col = gridY - minY, row = gridX - minX
+      const key = edgeData.flipped
+        ? `${cube.y - edgeData.minY},${cube.x - edgeData.minX}`
+        : `${cube.x - edgeData.minX},${cube.y - edgeData.minY}`;
       if (cellColors[key] !== undefined) color = cellColors[key];
     }
     g.rect(px, py, gridSize, gridSize);
     g.fill(color);
     if (edgeData) {
+      const dotKey = edgeData.flipped
+        ? `${cube.y - edgeData.minY},${cube.x - edgeData.minX}`
+        : `${cube.x - edgeData.minX},${cube.y - edgeData.minY}`;
       g.circle(px + gridSize / 2, py + gridSize / 2, dotRadius);
-      g.fill(blackDots.has(`${cube.x - edgeData.minX},${cube.y - edgeData.minY}`) ? 0x000000 : 0x808080);
+      g.fill(blackDots.has(dotKey) ? 0x000000 : 0x808080);
     }
 
     // Highlight the selected start vertex with a colored border (unless wavefront is running)
@@ -138,30 +144,47 @@ function drawEdges(edges) {
   const g = new PIXI.Graphics();
   if (!edgeData) return g;
 
-  const { minX, minY } = edgeData;
+  const { minX, minY, flipped } = edgeData;
   const color = 0x808080;
 
   for (const edge of edges) {
-    if (edge.edgeType === 'vertical') {
-      const col = edge.col + minX;
-      const fromRow = (edge.orientation === 1 ? edge.row     : edge.row + 1) + minY;
-      const toRow   = (edge.orientation === 1 ? edge.row + 1 : edge.row)     + minY;
-      drawArrow(g,
-        (col + 0.5) * gridSize, (fromRow + 0.5) * gridSize,
-        (col + 0.5) * gridSize, (toRow   + 0.5) * gridSize,
-        color
-      );
-    } else if (edge.edgeType === 'horizontal') {
-      const leftCol  = edge.col + minX;
-      const rightCol = edge.col + 1 + minX;
-      const row = edge.row + minY;
-      const fromCol = edge.orientation === 1 ? leftCol  : rightCol;
-      const toCol   = edge.orientation === 1 ? rightCol : leftCol;
-      drawArrow(g,
-        (fromCol + 0.5) * gridSize, (row + 0.5) * gridSize,
-        (toCol   + 0.5) * gridSize, (row + 0.5) * gridSize,
-        color
-      );
+    if (!flipped) {
+      if (edge.edgeType === 'vertical') {
+        const col = edge.col + minX;
+        const fromRow = (edge.orientation === 1 ? edge.row     : edge.row + 1) + minY;
+        const toRow   = (edge.orientation === 1 ? edge.row + 1 : edge.row)     + minY;
+        drawArrow(g,
+          (col + 0.5) * gridSize, (fromRow + 0.5) * gridSize,
+          (col + 0.5) * gridSize, (toRow   + 0.5) * gridSize,
+          color
+        );
+      } else if (edge.edgeType === 'horizontal') {
+        const leftCol  = edge.col + minX;
+        const rightCol = edge.col + 1 + minX;
+        const row = edge.row + minY;
+        const fromCol = edge.orientation === 1 ? leftCol  : rightCol;
+        const toCol   = edge.orientation === 1 ? rightCol : leftCol;
+        drawArrow(g,
+          (fromCol + 0.5) * gridSize, (row + 0.5) * gridSize,
+          (toCol   + 0.5) * gridSize, (row + 0.5) * gridSize,
+          color
+        );
+      }
+    } else {
+      // Flipped: algorithm col → gridY, algorithm row → gridX
+      if (edge.edgeType === 'vertical') {
+        // Same gridY, connects adjacent gridX values → horizontal arrow on screen
+        const fixedY = (edge.col + minY + 0.5) * gridSize;
+        const fromX = ((edge.orientation === 1 ? edge.row     : edge.row + 1) + minX + 0.5) * gridSize;
+        const toX   = ((edge.orientation === 1 ? edge.row + 1 : edge.row)     + minX + 0.5) * gridSize;
+        drawArrow(g, fromX, fixedY, toX, fixedY, color);
+      } else if (edge.edgeType === 'horizontal') {
+        // Same gridX, connects adjacent gridY values → vertical arrow on screen
+        const fixedX = (edge.row + minX + 0.5) * gridSize;
+        const fromY = ((edge.orientation === 1 ? edge.col     : edge.col + 1) + minY + 0.5) * gridSize;
+        const toY   = ((edge.orientation === 1 ? edge.col + 1 : edge.col)     + minY + 0.5) * gridSize;
+        drawArrow(g, fixedX, fromY, fixedX, toY, color);
+      }
     }
   }
 
@@ -237,6 +260,18 @@ function cubeToMatrix() {
   });
 
   if (minX === Infinity) return { matrix: [], count: 0 };
+
+  if (flipXY) {
+    // Transpose: rows = X range, cols = Y range
+    // algorithm col → gridY, algorithm row → gridX
+    const rows = maxX - minX + 1;
+    const cols = maxY - minY + 1;
+    const matrix = Array.from({ length: rows }, () => Array(cols).fill(false));
+    cubes.forEach((cube) => {
+      matrix[cube.x - minX][cube.y - minY] = true;
+    });
+    return { matrix, count, minX, minY };
+  }
 
   const rows = maxY - minY + 1;
   const cols = maxX - minX + 1;
@@ -316,8 +351,9 @@ function runAlgorithmWithStartVertex(gridX, gridY, autoPlay = true) {
   }
 
   // Check if selected vertex is within bounds
-  const matrixX = gridX - minX;
-  const matrixY = gridY - minY;
+  // When flipped: algorithm col = gridY - minY, row = gridX - minX
+  const matrixX = flipXY ? (gridY - minY) : (gridX - minX);
+  const matrixY = flipXY ? (gridX - minX) : (gridY - minY);
   if (matrixX < 0 || matrixX >= matrix[0].length || matrixY < 0 || matrixY >= matrix.length || !matrix[matrixY][matrixX]) {
     appendOutput('Error: Selected vertex must be on a cube.');
     return;
@@ -333,7 +369,7 @@ function runAlgorithmWithStartVertex(gridX, gridY, autoPlay = true) {
   }
 
   const { eventLog, vcompCount } = executeAlgorithm(matrix, { startX: matrixX, startY: matrixY });
-  edgeData = { eventLog, minX, minY };
+  edgeData = { eventLog, minX, minY, flipped: flipXY };
   const vertCount = eventLog.events.filter(e => e.type === 'addEdge' && e.edgeType === 'vertical').length;
   const horzCount = eventLog.events.filter(e => e.type === 'addEdge' && e.edgeType === 'horizontal').length;
   appendOutput(`Vertical edges: ${vertCount}`);
@@ -376,6 +412,7 @@ let paintMode = null; // 'add' or 'remove'
 let eraserActive = false;
 let selectingStartVertex = false;
 let selectedStartVertex = null; // { gridX, gridY } or null
+let flipXY = false;
 
 app.canvas.addEventListener('mousedown', e => {
   if (selectingStartVertex) {
@@ -526,7 +563,7 @@ function runAlgorithm(autoPlay = true) {
   }
 
   const { eventLog, vcompCount } = executeAlgorithm(matrix);
-  edgeData = { eventLog, minX, minY };
+  edgeData = { eventLog, minX, minY, flipped: flipXY };
   const vertCount = eventLog.events.filter(e => e.type === 'addEdge' && e.edgeType === 'vertical').length;
   const horzCount = eventLog.events.filter(e => e.type === 'addEdge' && e.edgeType === 'horizontal').length;
   appendOutput(`Vertical edges: ${vertCount}`);
@@ -896,6 +933,10 @@ document.getElementById('anim-level').addEventListener('change', () => {
   animState = { steps: computeSteps(document.getElementById('anim-level').value), position: 0 };
   updateScrubber();
   draw();
+});
+
+document.getElementById('flip-xy-checkbox').addEventListener('change', (e) => {
+  flipXY = e.target.checked;
 });
 
 document.getElementById('playback-speed').addEventListener('change', (e) => {
