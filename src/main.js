@@ -44,8 +44,7 @@ let playbackSpeed = 500; // milliseconds per frame
   // --- Draw grid function ---
   function drawGrid() {
     const g = new PIXI.Graphics();
-    // Scale line width inversely to zoom to keep lines visible
-    g.lineStyle(Math.max(0.5, 1 / camera.zoom), gridLineColor);
+    const lineWidth = Math.max(0.5, 1 / camera.zoom);
 
     const cols = Math.ceil(app.screen.width / (gridSize * camera.zoom)) + 2;
     const rows = Math.ceil(app.screen.height / (gridSize * camera.zoom)) + 2;
@@ -58,7 +57,6 @@ let playbackSpeed = 500; // milliseconds per frame
       const x = (startX + i) * gridSize;
       g.moveTo(x, startY * gridSize);
       g.lineTo(x, (startY + rows) * gridSize);
-      g.stroke();
     }
 
     // Horizontal lines
@@ -66,8 +64,9 @@ let playbackSpeed = 500; // milliseconds per frame
       const y = (startY + j) * gridSize;
       g.moveTo(startX * gridSize, y);
       g.lineTo((startX + cols) * gridSize, y);
-      g.stroke();
     }
+
+    g.stroke({ color: gridLineColor, width: lineWidth });
 
     return g;
   }
