@@ -2,15 +2,15 @@ import * as PIXI from 'pixi.js';
 import { gridMap } from './lib.js';
 import { runAlgorithm as executeAlgorithm } from './algorithm.js';
 const presets = import.meta.glob('./models/*.json', { eager: true });
+
+// Wrap everything in an async IIFE — top-level await hangs in Vite production builds
+// with PixiJS. See: https://github.com/pixijs/pixijs/issues/10456
+(async () => {
+
 // --- Initialize Pixi Application ---
 const app = new PIXI.Application();
 const container = document.getElementById('canvas-container');
-await app.init({                    // initialize it
-  width: window.innerWidth,
-  height: window.innerHeight,
-  backgroundColor: 0xFFFFFF,
-  resizeTo: window // auto-resize on window size change
-});
+await app.init({ background: 0xFFFFFF, resizeTo: window });
 
 // Append the canvas
 container.appendChild(app.canvas);
@@ -44,7 +44,7 @@ let playbackSpeed = 500; // milliseconds per frame
   // --- Draw grid function ---
   function drawGrid() {
     const g = new PIXI.Graphics();
-    const lineWidth = Math.max(0.5, 1 / camera.zoom);
+    const strokeStyle = { color: gridLineColor, width: Math.max(0.5, 1 / camera.zoom) };
 
     const cols = Math.ceil(app.screen.width / (gridSize * camera.zoom)) + 2;
     const rows = Math.ceil(app.screen.height / (gridSize * camera.zoom)) + 2;
@@ -55,18 +55,14 @@ let playbackSpeed = 500; // milliseconds per frame
     // Vertical lines
     for (let i = 0; i < cols; i++) {
       const x = (startX + i) * gridSize;
-      g.moveTo(x, startY * gridSize);
-      g.lineTo(x, (startY + rows) * gridSize);
+      g.moveTo(x, startY * gridSize).lineTo(x, (startY + rows) * gridSize).stroke(strokeStyle);
     }
 
     // Horizontal lines
     for (let j = 0; j < rows; j++) {
       const y = (startY + j) * gridSize;
-      g.moveTo(startX * gridSize, y);
-      g.lineTo((startX + cols) * gridSize, y);
+      g.moveTo(startX * gridSize, y).lineTo((startX + cols) * gridSize, y).stroke(strokeStyle);
     }
-
-    g.stroke({ color: gridLineColor, width: lineWidth });
 
     return g;
   }
@@ -199,7 +195,7 @@ function drawEdges(edges) {
 
 // --- Main draw ---
 function draw() {
-  world.removeChildren();
+  world.removeChildren().forEach(child => child.destroy());
 
   // Replay event log up to current animation position
   const cellColors = {};
@@ -1021,3 +1017,5 @@ document.getElementById('playback-speed').addEventListener('change', (e) => {
     }
   }
 });
+
+})(); // end async IIFE
