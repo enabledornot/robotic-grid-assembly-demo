@@ -19,3 +19,7 @@ An interactive web demo of the wavefront sweep algorithm. Place cells on a grid,
    npm run dev
    ```
    Open the URL printed in the terminal in your browser (usually `http:localhost:5173`).
+
+## Disclaimer
+
+This repository was built with the assistance of [Claude](https://claude.ai) (Anthropic's AI). All changes were reviewed and verified by a human.
